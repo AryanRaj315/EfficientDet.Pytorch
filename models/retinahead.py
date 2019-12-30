@@ -63,6 +63,7 @@ class RetinaHead(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.cls_convs = nn.ModuleList()
         self.reg_convs = nn.ModuleList()
+        self.creg_convs = nn.ModuleList()
         for i in range(self.stacked_convs):
             chn = self.in_channels if i == 0 else self.feat_channels
             self.cls_convs.append(
@@ -83,6 +84,15 @@ class RetinaHead(nn.Module):
                     padding=1,
                     conv_cfg=self.conv_cfg,
                     norm_cfg=self.norm_cfg))
+            self.creg_convs.append(
+                ConvModule(
+                    chn,
+                    self.feat_channels,
+                    3,
+                    stride=1,
+                    padding=1,
+                    conv_cfg=self.conv_cfg,
+                    norm_cfg=self.norm_cfg))
         self.retina_cls = nn.Conv2d(
             self.feat_channels,
             self.num_anchors * self.cls_out_channels,
@@ -90,6 +100,8 @@ class RetinaHead(nn.Module):
             padding=1)
         self.retina_reg = nn.Conv2d(
             self.feat_channels, self.num_anchors * 4, 3, padding=1)
+        self.retina_creg = nn.Conv2d(
+            self.feat_channels, self.num_anchors * 8, 3, padding=1)
         self.output_act = nn.Sigmoid()
 
     def init_weights(self):
@@ -97,17 +109,23 @@ class RetinaHead(nn.Module):
             normal_init(m.conv, std=0.01)
         for m in self.reg_convs:
             normal_init(m.conv, std=0.01)
+        for m in self.creg_convs:
+            normal_init(m.conv, std=0.01)
         bias_cls = bias_init_with_prob(0.01)
         normal_init(self.retina_cls, std=0.01, bias=bias_cls)
         normal_init(self.retina_reg, std=0.01)
+        normal_init(self.retina_creg, std=0.01)
 
     def forward_single(self, x):
         cls_feat = x
         reg_feat = x
+        creg_feat = x
         for cls_conv in self.cls_convs:
             cls_feat = cls_conv(cls_feat)
         for reg_conv in self.reg_convs:
             reg_feat = reg_conv(reg_feat)
+        for creg_conv in self.creg_convs:
+            creg_feat = creg_conv(creg_feat)
         
         cls_score = self.retina_cls(cls_feat)
         cls_score = self.output_act(cls_score)
@@ -121,6 +139,11 @@ class RetinaHead(nn.Module):
         bbox_pred = self.retina_reg(reg_feat)
         bbox_pred = bbox_pred.permute(0, 2, 3, 1)
         bbox_pred = bbox_pred.contiguous().view(bbox_pred.size(0), -1, 4)
-        return cls_score, bbox_pred
+
+        corner_pred = self.retina_creg(creg_feat)
+        corner_pred = corner_pred.permute(0, 2, 3, 1)
+        corner_pred = corner_pred.contiguous().view(corner_pred.size(0), -1, 8)
+
+        return cls_score, bbox_pred, corner_pred
     def forward(self, feats):
         return multi_apply(self.forward_single, feats)

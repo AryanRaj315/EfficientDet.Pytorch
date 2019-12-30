@@ -24,12 +24,13 @@ def calc_iou(a, b):
 class FocalLoss(nn.Module):
     #def __init__(self):
 
-    def forward(self, classifications, regressions, anchors, annotations):
+    def forward(self, classifications, regressions, corners, anchors, annotations_bboxes, annotations_corners):
         alpha = 0.25
         gamma = 2.0
         batch_size = classifications.shape[0]
         classification_losses = []
         regression_losses = []
+        corner_losses = []
 
         anchor = anchors[0, :, :]
 
@@ -42,14 +43,23 @@ class FocalLoss(nn.Module):
 
             classification = classifications[j, :, :]
             regression = regressions[j, :, :]
+            corner = corners[j, :, :]
 
-            bbox_annotation = annotations[j, :, :]
+            bbox_annotation = annotations_bboxes[j, :, :]
             bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
+
+            corner_annotation = annotations_corners[j, :, :]
+            corner_annotation = corner_annotation[corner_annotation[:, 8] != -1]
+
+            # compute the loss for corner regression
+
+            corner_loss_fn = torch.nn.MSELoss()
+            corner_loss = corner_loss_fn(corner, corner_annotation)
+            corner_losses.append(corner_loss.float().to(anchors.device))
 
             if bbox_annotation.shape[0] == 0:
                 regression_losses.append(torch.tensor(0).float().to(anchors.device))
                 classification_losses.append(torch.tensor(0).float().to(anchors.device))
-
                 continue
 
             classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
@@ -134,4 +144,5 @@ class FocalLoss(nn.Module):
             else:
                 regression_losses.append(torch.tensor(0).float().to(anchors.device))
 
-        return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True)
+
+        return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True), torch.stack(corner_losses).mean(dim=0, keepdim=True)
