@@ -14,8 +14,8 @@ _CLASSES = ('vertebrae')
 
 class SPINEDetection(data.Dataset):
 
-    def __init__(self, root, image_set='training', bboxes_df = bboxes_df, 
-        corners_df = corners_df, fileame_df = filename_df, transform=None, dataset_name=''):
+    def __init__(self, root, bboxes_df, corners_df, fileame_df, image_set='training',
+     transform=None, dataset_name=''):
         # sys.path.append(osp.join(root, COCO_API))
         # from pycocotools.coco import COCO
         self.root = osp.join(root, IMAGES, image_set)
@@ -36,7 +36,9 @@ class SPINEDetection(data.Dataset):
         img = cv2.imread(osp.join(self.root, img_id))
 
         ##########
-        Needs Transformation to model
+
+        # Needs Transformation to model
+        
         ##########
 
         # if self.transform is not None:
@@ -46,7 +48,7 @@ class SPINEDetection(data.Dataset):
         #     bbox = augmentation['bboxes']
         #     labels = augmentation['category_id']
 
-        return {'image': img, 'bboxes': bbox, 'corners': corners 'category_id': labels} 
+        return {'image': img, 'bboxes': bbox, 'corners': corners, 'category_id': labels} 
 
 
     def __len__(self):
