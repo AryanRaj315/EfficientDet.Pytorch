@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 
 
-def get_augumentation(phase, width=700, height=1333, min_area=0., min_visibility=0.):
+def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility=0.):
     list_transforms = []
     if phase == 'train':
         list_transforms.extend([
