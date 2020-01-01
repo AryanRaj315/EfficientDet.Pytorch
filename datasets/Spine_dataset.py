@@ -32,9 +32,16 @@ class SPINEDetection(data.Dataset):
         corner_arr = np.array(corner_arr)
 
         img = cv2.imread(osp.join(self.root, img_id))
-
         bbox = bboxes.iloc[:,1:5].values
         labels = bboxes.iloc[:,5].values
+        if self.transform is not None:
+            annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
+            augmentation = self.transform(**annotation)
+            img = augmentation['image']
+            bbox = augmentation['bboxes']
+            labels = augmentation['category_id']
+
+
         return {'image': img, 'bboxes': bbox, 'corners': corner_arr, 'category_id': labels} 
 
 
