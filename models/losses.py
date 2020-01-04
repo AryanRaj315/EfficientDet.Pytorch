@@ -142,5 +142,38 @@ class FocalLoss(nn.Module):
 
             ##############################
             # compute the loss for corners
+            assigned_annotations = corner_annotation[IoU_argmax, :]
+            if positive_indices.sum() > 0:
+                assigned_annotations = assigned_annotations[positive_indices, :]
 
+                anchor_ctr_x_pi = anchor_ctr_x[positive_indices]
+                anchor_ctr_y_pi = anchor_ctr_y[positive_indices]
+
+                # targets_dx = (gt_ctr_x - anchor_ctr_x_pi) / anchor_widths_pi
+                # targets_dy = (gt_ctr_y - anchor_ctr_y_pi) / anchor_heights_pi
+                # targets_dw = torch.log(gt_widths / anchor_widths_pi)
+                # targets_dh = torch.log(gt_heights / anchor_heights_pi)
+
+                targets_dx1 = assigned_annotations[:,0]
+                targets_dx2 = assigned_annotations[:,1]
+                targets_dx3 = assigned_annotations[:,2]
+                targets_dx4 = assigned_annotations[:,3]
+                targets_dy1 = assigned_annotations[:,4]
+                targets_dy2 = assigned_annotations[:,5]
+                targets_dy3 = assigned_annotations[:,6]
+                targets_dy4 = assigned_annotations[:,7]
+
+                targets = torch.stack((targets_dx1, targets_dx2, targets_dx3, targets_dx4, targets_dy1, targets_dy2, targets_dy3, targets_dy4))
+                targets = targets.t()
+
+                targets = targets.to(anchors.device)
+
+                negative_indices = ~positive_indices
+
+                corner_loss = torch.nn.functional.mse_loss(corner[positive_indices, :],targets)
+
+                corner_losses.append(corner_loss.mean())
+            else:
+                corner_losses.append(torch.tensor(0).float().to(anchors.device))
+            
         return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True), torch.stack(corner_losses).mean(dim=0, keepdim=True)
