@@ -45,8 +45,6 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
                        std=(0.229, 0.224, 0.225), p=1),
         ToTensor()
     ])
-    if(phase == 'test'):
-        return albu.Compose(list_transforms)
     return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area,
                                                                      min_visibility=min_visibility, label_fields=['category_id']))
 
