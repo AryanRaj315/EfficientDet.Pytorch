@@ -38,6 +38,19 @@ class FocalLoss(nn.Module):
         anchor_heights = anchor[:, 3] - anchor[:, 1]
         anchor_ctr_x   = anchor[:, 0] + 0.5 * anchor_widths
         anchor_ctr_y   = anchor[:, 1] + 0.5 * anchor_heights
+        
+        # TODO
+	# might have to use this to subtract each predicted corners from respective anchor corners
+        # but for now we only subtract center of the anchors from each predicted corners 
+
+        anchor_dx1 = anchor[:,0]
+        anchor_dx2 = anchor[:,2]
+        anchor_dx3 = anchor[:,0]
+        anchor_dx4 = anchor[:,2]
+        anchor_dy1 = anchor[:,1]
+        anchor_dy2 = anchor[:,3]
+        anchor_dy3 = anchor[:,1]
+        anchor_dy4 = anchor[:,3]
 
         for j in range(batch_size):
 
@@ -47,22 +60,25 @@ class FocalLoss(nn.Module):
 
             bbox_annotation = annotations_bboxes[j, :, :]
             bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
-
+            
+            corner_annotation = annotations_corners[annotations_corners[:,8] ! =-1]
             corner_annotation = annotations_corners[j, :, :]
 
             # compute the loss for corner regression
 
-            if bbox_annotation.shape[0] == 0:
+            if bbox_annotation.shape[0] == 0 or corner_annotation.shape[0] == 0:
                 regression_losses.append(torch.tensor(0).float().to(anchors.device))
+                corner_losses.append(torch.tensor(0).float().to(anchors.device))
                 classification_losses.append(torch.tensor(0).float().to(anchors.device))
                 continue
 
             classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
 
             IoU = calc_iou(anchors[0, :, :], bbox_annotation[:, :4]) # num_anchors x num_annotations
+            print (IOU.shape)
 
             IoU_max, IoU_argmax = torch.max(IoU, dim=1) # num_anchors x 1
-
+            print (IOE_max.shape)
             #import pdb
             #pdb.set_trace()
 
@@ -73,14 +89,16 @@ class FocalLoss(nn.Module):
             targets[torch.lt(IoU_max, 0.4), :] = 0
 
             positive_indices = torch.ge(IoU_max, 0.5)
-
+            print (positive_indices)
             num_positive_anchors = positive_indices.sum()
+           
 
             assigned_annotations = bbox_annotation[IoU_argmax, :]
+            print (assigned_annotations.shape)
 
             targets[positive_indices, :] = 0
             targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1
-
+            print (targets.shape)
             alpha_factor = torch.ones(targets.shape) * alpha
             alpha_factor = alpha_factor.to(anchors.device)
             alpha_factor = torch.where(torch.eq(targets, 1.), alpha_factor, 1. - alpha_factor)
@@ -154,14 +172,15 @@ class FocalLoss(nn.Module):
                 # targets_dw = torch.log(gt_widths / anchor_widths_pi)
                 # targets_dh = torch.log(gt_heights / anchor_heights_pi)
 
-                targets_dx1 = assigned_annotations[:,0]
-                targets_dx2 = assigned_annotations[:,1]
-                targets_dx3 = assigned_annotations[:,2]
-                targets_dx4 = assigned_annotations[:,3]
-                targets_dy1 = assigned_annotations[:,4]
-                targets_dy2 = assigned_annotations[:,5]
-                targets_dy3 = assigned_annotations[:,6]
-                targets_dy4 = assigned_annotations[:,7]
+
+                targets_dx1 = assigned_annotations[:,0]-anchor_ctr_x_pi
+                targets_dx2 = assigned_annotations[:,1]-anchor_ctr_x_pi
+                targets_dx3 = assigned_annotations[:,2]-anchor_ctr_x_pi
+                targets_dx4 = assigned_annotations[:,3]-anchor_ctr_x_pi
+                targets_dy1 = assigned_annotations[:,4]-anchor_ctr_y_pi
+                targets_dy2 = assigned_annotations[:,5]-anchor_ctr_y_pi
+                targets_dy3 = assigned_annotations[:,6]-anchor_ctr_y_pi
+                targets_dy4 = assigned_annotations[:,7]-anchor_ctr_y_pi
 
                 targets = torch.stack((targets_dx1, targets_dx2, targets_dx3, targets_dx4, targets_dy1, targets_dy2, targets_dy3, targets_dy4))
                 targets = targets.t()

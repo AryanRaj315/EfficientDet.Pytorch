@@ -63,6 +63,8 @@ class EfficientDet(nn.Module):
         if self.is_training:
             return classification, regression, corners, anchors
         else:
+            # TODO
+            # we need a separate module as regressBoxes to transfrom local corners to full image coordinate.
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)
             scores = torch.max(classification, dim=2, keepdim=True)[0]
