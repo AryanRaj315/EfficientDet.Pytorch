@@ -114,4 +114,4 @@ venv.bak/
 
 saved/
 weights/
-boostnet_labeldata/
+boostnet_labeldata
