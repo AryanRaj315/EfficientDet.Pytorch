@@ -61,8 +61,10 @@ class FocalLoss(nn.Module):
             bbox_annotation = annotations_bboxes[j, :, :]
             bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
             
-            corner_annotation = annotations_corners[annotations_corners[:,8] ! =-1]
+
             corner_annotation = annotations_corners[j, :, :]
+            corner_annotation = corner_annotation[corner_annotation[:,7] != -1]
+            
 
             # compute the loss for corner regression
 
@@ -75,10 +77,9 @@ class FocalLoss(nn.Module):
             classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
 
             IoU = calc_iou(anchors[0, :, :], bbox_annotation[:, :4]) # num_anchors x num_annotations
-            print (IOU.shape)
+            
 
             IoU_max, IoU_argmax = torch.max(IoU, dim=1) # num_anchors x 1
-            print (IOE_max.shape)
             #import pdb
             #pdb.set_trace()
 
@@ -89,16 +90,15 @@ class FocalLoss(nn.Module):
             targets[torch.lt(IoU_max, 0.4), :] = 0
 
             positive_indices = torch.ge(IoU_max, 0.5)
-            print (positive_indices)
             num_positive_anchors = positive_indices.sum()
            
 
             assigned_annotations = bbox_annotation[IoU_argmax, :]
-            print (assigned_annotations.shape)
+            
 
             targets[positive_indices, :] = 0
             targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1
-            print (targets.shape)
+            
             alpha_factor = torch.ones(targets.shape) * alpha
             alpha_factor = alpha_factor.to(anchors.device)
             alpha_factor = torch.where(torch.eq(targets, 1.), alpha_factor, 1. - alpha_factor)

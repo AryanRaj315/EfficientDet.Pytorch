@@ -4,7 +4,7 @@ import math
 from models.efficientnet import EfficientNet
 from models.bifpn import BIFPN
 from .retinahead import RetinaHead
-from models.module import RegressionModel, ClassificationModel, Anchors, ClipBoxes, BBoxTransform
+from models.module import RegressionModel, ClassificationModel, Anchors, ClipBoxes, BBoxTransform, ClipCorners, CornerTransform
 from torchvision.ops import nms 
 
 MODEL_MAP = {
@@ -41,6 +41,8 @@ class EfficientDet(nn.Module):
         self.anchors = Anchors()
         self.regressBoxes = BBoxTransform()
         self.clipBoxes = ClipBoxes()
+        self.regressCorners = CornerTransform()
+        self.clipCorners = ClipCorners()
         self.threshold = threshold
         self.iou_threshold = iou_threshold
 
@@ -67,6 +69,8 @@ class EfficientDet(nn.Module):
             # we need a separate module as regressBoxes to transfrom local corners to full image coordinate.
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)
+            transformed_corners = self.regressCorners(anchors, corners)
+            transformed_corners = self.clipCorners(transformed_corners, inputs)
             scores = torch.max(classification, dim=2, keepdim=True)[0]
             scores_over_thresh = (scores > self.threshold)[0, :, 0]
 
@@ -76,10 +80,11 @@ class EfficientDet(nn.Module):
                 return [torch.zeros(0), torch.zeros(0), torch.zeros(0, 4), torch.zeros(0, 8)]
             classification = classification[:, scores_over_thresh, :]
             transformed_anchors = transformed_anchors[:, scores_over_thresh, :]
+            transformed_corners = transformed_corners[:, scores_over_thresh, :]
             scores = scores[:, scores_over_thresh, :]
             anchors_nms_idx = nms(transformed_anchors[0, :, :], scores[0, :, 0], iou_threshold = self.iou_threshold)
             nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(dim=1)
-            return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :], corners]
+            return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :], transformed_corners[0,anchors_nms_idx,:]]
     def freeze_bn(self):
         '''Freeze BatchNorm layers.'''
         for layer in self.modules():
