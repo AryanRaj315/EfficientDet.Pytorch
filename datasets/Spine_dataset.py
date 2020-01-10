@@ -29,8 +29,8 @@ class SPINEDetection(data.Dataset):
 
         corner_arr = []
         for i in range(17):
-            x1,x2,x3,x4 = np.round((self.W/W)*corners.iloc[4*i:4*(i+1)])
-            y1,y2,y3,y4 = np.round((self.H/H)*corners.iloc[68+4*i:68+4*(i+1)])
+            x1,x2,x3,x4 = np.round((self.W)*corners.iloc[4*i:4*(i+1)])
+            y1,y2,y3,y4 = np.round((self.H)*corners.iloc[68+4*i:68+4*(i+1)])
             corner_arr.append(np.array([x1,x2,x3,x4,y1,y2,y3,y4]))
 
         corner_arr = np.array(corner_arr)
