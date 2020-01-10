@@ -73,14 +73,14 @@ class CornerTransform(nn.Module):
         ctr_x   = anchors[:, :, 0] + 0.5 * widths
         ctr_y   = anchors[:, :, 1] + 0.5 * heights
 
-        corner_x1 = deltas[:, :, 0]+ctr_x
-        corner_x2 = deltas[:, :, 1]+ctr_x 
-        corner_x3 = deltas[:, :, 2]+ctr_x 
-        corner_x4 = deltas[:, :, 3]+ctr_x 
-        corner_y1 = deltas[:, :, 4]+ctr_y
-        corner_y2 = deltas[:, :, 5]+ctr_y
-        corner_y3 = deltas[:, :, 6]+ctr_y
-        corner_y4 = deltas[:, :, 7]+ctr_y
+        corner_x1 = widths *deltas[:, :, 0]+ctr_x
+        corner_x2 = widths *deltas[:, :, 1]+ctr_x
+        corner_x3 = widths *deltas[:, :, 2]+ctr_x
+        corner_x4 = widths *deltas[:, :, 3]+ctr_x
+        corner_y1 = heights*deltas[:, :, 4]+ctr_y
+        corner_y2 = heights*deltas[:, :, 5]+ctr_y
+        corner_y3 = heights*deltas[:, :, 6]+ctr_y
+        corner_y4 = heights*deltas[:, :, 7]+ctr_y
        
 
         pred_corners = torch.stack([corner_x1, corner_x2, corner_x3, corner_x4,corner_y1, corner_y2, corner_y3, corner_y4], dim=2)
