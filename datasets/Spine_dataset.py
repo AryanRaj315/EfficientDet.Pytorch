@@ -49,3 +49,30 @@ class SPINEDetection(data.Dataset):
 
     def __len__(self):
         return len(self.fileame_df)
+
+class SPINEDetection_test(data.Dataset):
+
+    def __init__(self, root = 'test_images', transform = None, img_size = (1408,768)):
+        self.root = root
+        self.transform = transform
+        self.H, self.W = img_size
+        path = []
+        for img in os.listdir(root):
+            if img[-3:] == 'jpg':
+                path.append(img)
+        self.path = path
+
+    def __getitem__(self, index):
+        img_name = self.path[index]
+        img = cv2.imread(osp.join(self.root, img_name))
+
+        if self.transform is not None:
+            annotation = {'image': img}
+            augmentation = self.transform(**annotation)
+            img = augmentation['image']
+            
+        return img 
+
+
+    def __len__(self):
+        return len(self.path)

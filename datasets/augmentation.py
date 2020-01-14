@@ -23,7 +23,6 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
                 albu.RandomGamma(gamma_limit=(50, 150)),
-                albu.NoOp()
             ]),
             albu.GaussianBlur(),
             albu.Cutout(20,50,50),
@@ -34,7 +33,7 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
             # albu.HorizontalFlip(p=0.5),
             # albu.VerticalFlip(p=0.5),
         ])
-    if(phase == 'test' or phase == 'val):
+    if(phase == 'test' or phase == 'val'):
         list_transforms.extend([
             albu.Resize(height=height, width=width)
         ])
