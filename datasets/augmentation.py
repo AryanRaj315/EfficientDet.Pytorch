@@ -25,18 +25,16 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
                 albu.RandomGamma(gamma_limit=(50, 150)),
                 albu.NoOp()
             ]),
-            albu.OneOf([
-                albu.RGBShift(r_shift_limit=20, b_shift_limit=15,
-                              g_shift_limit=15),
-                albu.HueSaturationValue(hue_shift_limit=5,
-                                        sat_shift_limit=5),
-                albu.NoOp()
-            ]),
-            albu.CLAHE(p=0.8),
+            albu.GaussianBlur(),
+            albu.Cutout(20,50,50),
+            albu.GaussNoise(),
+            albu.HueSaturationValue(),
+            albu.ISONoise(),
+            albu.CLAHE(),
             # albu.HorizontalFlip(p=0.5),
             # albu.VerticalFlip(p=0.5),
         ])
-    if(phase == 'test'):
+    if(phase == 'test' or phase == 'val):
         list_transforms.extend([
             albu.Resize(height=height, width=width)
         ])
@@ -45,6 +43,8 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
                        std=(0.229, 0.224, 0.225), p=1),
         ToTensor()
     ])
+    if(phase == 'test'):
+        return albu.Compose(list_transforms)
     return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area,
                                                                      min_visibility=min_visibility, label_fields=['category_id']))
 
