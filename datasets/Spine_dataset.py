@@ -28,6 +28,7 @@ class SPINEDetection(data.Dataset):
     def __init__(self, root, bboxes_df, corners_df, fileame_df, image_set='training',
      transform=None, img_size = (1408,768)):
         self.root = osp.join(root, image_set)
+        self.phase = image_set
         self.transform = transform
         self.bboxes_df = bboxes_df
         self.corners_df = corners_df
@@ -52,7 +53,7 @@ class SPINEDetection(data.Dataset):
         bbox = bboxes.iloc[:,1:5].values
         labels = bboxes.iloc[:,5].values
         
-        if(np.random.rand(1)[0]>0.5):
+        if(np.random.rand(1)[0]>0.5 and self.phase == 'training'):
             img, bbox, corner_arr, labels = horizontal_flip(img,bbox,corner_arr,labels,self.W)
         
         if self.transform is not None:
