@@ -8,10 +8,10 @@ import cv2
 import numpy as np
 import albumentations as albu
 
-def horizontal_flip(img,bboxs,corners,labels):
+def horizontal_flip(img,bboxs,corners,labels,W):
     hflip_corners = []
     for corner in corners:
-        hflip_corner = np.array([corner[1],corner[0],corner[3],corner[2],corner[5],corner[4],corner[7],corner[6]])
+        hflip_corner = np.array([W-corner[0],W-corner[1],W-corner[2],W-corner[3],corner[4],corner[5],corner[6],corner[7]])
         hflip_corners.append(hflip_corner)
         
     list_transforms = [albu.HorizontalFlip(p=1.0)]
@@ -53,7 +53,7 @@ class SPINEDetection(data.Dataset):
         labels = bboxes.iloc[:,5].values
         
         if(np.random.rand(1)[0]>0.5):
-            img, bbox, corner_arr, labels = horizontal_flip(img,bbox,corner_arr,labels)
+            img, bbox, corner_arr, labels = horizontal_flip(img,bbox,corner_arr,labels,self.W)
         
         if self.transform is not None:
             annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
