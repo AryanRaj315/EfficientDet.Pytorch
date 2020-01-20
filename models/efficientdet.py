@@ -58,10 +58,9 @@ class EfficientDet(nn.Module):
         outs = self.bbox_head(x)
         classification = torch.cat([out for out in outs[0]], dim=1)
         regression = torch.cat([out for out in outs[1]], dim=1)
-        corners = torch.cat([out for out in outs[2]], dim=1)
         anchors = self.anchors(inputs)
         if self.is_training:
-            return classification, regression, corners, anchors
+            return classification, regression, anchors
         else:
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)
@@ -77,7 +76,7 @@ class EfficientDet(nn.Module):
             scores = scores[:, scores_over_thresh, :]
             anchors_nms_idx = nms(transformed_anchors[0, :, :], scores[0, :, 0], iou_threshold = self.iou_threshold)
             nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(dim=1)
-            return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :], corners]
+            return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :]]
     def freeze_bn(self):
         '''Freeze BatchNorm layers.'''
         for layer in self.modules():
