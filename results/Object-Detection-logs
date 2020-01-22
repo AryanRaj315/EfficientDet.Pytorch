@@ -1,0 +1,50 @@
+Object Detection - 
+1. Bbox Size increased by 10%(Not 50px and 10px)
+EfficientDet-D0-Adam(1e-4 with ReduceLRonPlateu)-Stopped After Some Overfit
+Augmentation - HorizontalFlip,Gaussnoise
+Epoch 35
+Train - 
+    loss           : 0.37625578450567926
+    bbox_loss      : 0.30431408720251957
+    cls_loss       : 0.07194169707320354
+Val - 
+    loss           : 0.5372468300841071
+    bbox_loss      : 0.4079433706673709
+    cls_loss       : 0.1293034553527832
+
+
+2. Bbox Size increased by 10%(Not 50px and 10px)-
+EfficientDet-D3-Adam(1e-4 with ReduceLRonPlateu)-Stopped After Some Overfit
+Augmentation - HorizontalFlip,Gaussnoise
+Epoch 25
+Train - 
+    loss           : 0.24282782663942867
+    bbox_loss      : 0.21051362231064635
+    cls_loss       : 0.03231420458769774
+Val - 
+    loss           : 0.48450846364721656
+    bbox_loss      : 0.35478863841854036
+    cls_loss       : 0.12971982912858948
+
+
+3. Same as 2 only augmentation changed to - 
+
+albu.Resize(height=height, width=width),
+albu.OneOf([
+    albu.RandomBrightnessContrast(brightness_limit=0.5,
+                                  contrast_limit=0.4),
+    albu.RandomGamma(gamma_limit=(50, 150)),
+    albu.NoOp()
+]),
+albu.OneOf([
+    albu.RGBShift(r_shift_limit=20, b_shift_limit=15,
+                  g_shift_limit=15),
+    albu.HueSaturationValue(hue_shift_limit=5,
+                            sat_shift_limit=5),
+    albu.NoOp()
+]),
+albu.CLAHE(p=0.8),
+albu.HorizontalFlip(p=0.5),
+albu.GaussNoise(),
+
+4. Same as 3 classification_weight - 0.1

@@ -19,20 +19,20 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
 #             albu.augmentations.transforms.Flip(),
 #             albu.augmentations.transforms.Transpose(),
             albu.Resize(height=height, width=width),
-#             albu.OneOf([
-#                 albu.RandomBrightnessContrast(brightness_limit=0.5,
-#                                               contrast_limit=0.4),
-#                 albu.RandomGamma(gamma_limit=(50, 150)),
-#                 albu.NoOp()
-#             ]),
-#             albu.OneOf([
-#                 albu.RGBShift(r_shift_limit=20, b_shift_limit=15,
-#                               g_shift_limit=15),
-#                 albu.HueSaturationValue(hue_shift_limit=5,
-#                                         sat_shift_limit=5),
-#                 albu.NoOp()
-#             ]),
-#             albu.CLAHE(p=0.8),
+            albu.OneOf([
+                albu.RandomBrightnessContrast(brightness_limit=0.5,
+                                              contrast_limit=0.4),
+                albu.RandomGamma(gamma_limit=(50, 150)),
+                albu.NoOp()
+            ]),
+            albu.OneOf([
+                albu.RGBShift(r_shift_limit=20, b_shift_limit=15,
+                              g_shift_limit=15),
+                albu.HueSaturationValue(hue_shift_limit=5,
+                                        sat_shift_limit=5),
+                albu.NoOp()
+            ]),
+            albu.CLAHE(p=0.5),
             albu.HorizontalFlip(p=0.5),
             albu.GaussNoise(),
             # albu.VerticalFlip(p=0.5),
