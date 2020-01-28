@@ -6,29 +6,13 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 import cv2
 import numpy as np
-import albumentations as albu
 
-def horizontal_flip(img,bboxs,corners,labels,W):
-    hflip_corners = []
-    for corner in corners:
-        hflip_corner = np.array([W-corner[0],W-corner[1],W-corner[2],W-corner[3],corner[4],corner[5],corner[6],corner[7]])
-        hflip_corners.append(hflip_corner)
-        
-    list_transforms = [albu.HorizontalFlip(p=1.0)]
-    hflip = albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=0, min_visibility=0, label_fields=['category_id']))
-    annotation = {'image': img, 'bboxes': bboxs, 'category_id': labels}
-    augmentation = hflip(**annotation)
-    img = augmentation['image']
-    bbox = augmentation['bboxes']
-    labels = augmentation['category_id']
-    return img,bbox,np.array(hflip_corners),labels
 
 class SPINEDetection(data.Dataset):
 
     def __init__(self, root, bboxes_df, corners_df, fileame_df, image_set='training',
      transform=None, img_size = (1408,768)):
         self.root = osp.join(root, image_set)
-        self.phase = image_set
         self.transform = transform
         self.bboxes_df = bboxes_df
         self.corners_df = corners_df
@@ -42,20 +26,16 @@ class SPINEDetection(data.Dataset):
 
         img = cv2.imread(osp.join(self.root, img_id))
         H,W,_ = img.shape
-        
+
         corner_arr = []
         for i in range(17):
             x1,x2,x3,x4 = np.round((self.W)*corners.iloc[4*i:4*(i+1)])
             y1,y2,y3,y4 = np.round((self.H)*corners.iloc[68+4*i:68+4*(i+1)])
             corner_arr.append(np.array([x1,x2,x3,x4,y1,y2,y3,y4]))
-        
+
         corner_arr = np.array(corner_arr)
         bbox = bboxes.iloc[:,1:5].values
         labels = bboxes.iloc[:,5].values
-        
-        if(np.random.rand(1)[0]>0.5 and self.phase == 'training'):
-            img, bbox, corner_arr, labels = horizontal_flip(img,bbox,corner_arr,labels,self.W)
-        
         if self.transform is not None:
             annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
             augmentation = self.transform(**annotation)

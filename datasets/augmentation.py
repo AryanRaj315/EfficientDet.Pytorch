@@ -29,7 +29,7 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
             albu.GaussNoise(),
             albu.HueSaturationValue(),
             albu.ISONoise(),
-            albu.CLAHE(),
+            albu.CLAHE(p=0.8),
             # albu.HorizontalFlip(p=0.5),
             # albu.VerticalFlip(p=0.5),
         ])
