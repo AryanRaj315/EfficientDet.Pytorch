@@ -23,6 +23,25 @@ class SPINEDetection(data.Dataset):
         bboxes = self.bboxes_df[self.bboxes_df.image_id == img_id]
 
         img = cv2.imread(osp.join(self.root, img_id))
+        H,W,_ = img.shape
+#         aspect_ratio = H/W #setting max to 2
+#         if(aspect_ratio>2):
+#             rh,rw = 1024,512
+#         else:
+        h = H//2
+        w = W//2
+        rh = h+128-h%128
+        rw = w+128-w%128
+#         rh = rh/rw*512
+#         rw = 512
+#         rh = 1024
+#         rw = int(W/H*1024 + 128-int(W/H*1024)%128)
+        
+        img = cv2.resize(img,(rw,rh))
+        bboxes.iloc[:,1] = (bboxes.iloc[:,1]/W*rw).astype(int)
+        bboxes.iloc[:,3] = (bboxes.iloc[:,3]/W*rw).astype(int)
+        bboxes.iloc[:,2] = (bboxes.iloc[:,2]/H*rh).astype(int)
+        bboxes.iloc[:,4] = (bboxes.iloc[:,4]/H*rh).astype(int)
         
         bbox = bboxes.iloc[:,1:5].values
         labels = bboxes.iloc[:,5].values
