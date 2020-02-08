@@ -59,52 +59,6 @@ class ClipBoxes(nn.Module):
       
         return boxes
 
-
-class CornerTransform(nn.Module):
-    
-    def __init__(self, mean=None, std=None):
-        super(CornerTransform, self).__init__()
-        
-
-    def forward(self, anchors, deltas):
-
-        widths  = anchors[:, :, 2] - anchors[:, :, 0]
-        heights = anchors[:, :, 3] - anchors[:, :, 1]
-        ctr_x   = anchors[:, :, 0] + 0.5 * widths
-        ctr_y   = anchors[:, :, 1] + 0.5 * heights
-
-        corner_x1 = widths *deltas[:, :, 0]+ctr_x
-        corner_x2 = widths *deltas[:, :, 1]+ctr_x
-        corner_x3 = widths *deltas[:, :, 2]+ctr_x
-        corner_x4 = widths *deltas[:, :, 3]+ctr_x
-        corner_y1 = heights*deltas[:, :, 4]+ctr_y
-        corner_y2 = heights*deltas[:, :, 5]+ctr_y
-        corner_y3 = heights*deltas[:, :, 6]+ctr_y
-        corner_y4 = heights*deltas[:, :, 7]+ctr_y
-       
-
-        pred_corners = torch.stack([corner_x1, corner_x2, corner_x3, corner_x4,corner_y1, corner_y2, corner_y3, corner_y4], dim=2)
-
-        return pred_corners
-
-class ClipCorners(nn.Module):
-
-    def __init__(self, width=None, height=None):
-        super(ClipCorners, self).__init__()
-
-    def forward(self, corners, img):
-
-        batch_size, num_channels, height, width = img.shape
-
-        corners[:, :, 0:3:2] = torch.clamp(corners[:, :, 0:3:2], min=0)
-        corners[:, :, 4:7:2] = torch.clamp(corners[:, :, 4:7:2], min=0)
-      
-
-        corners[:, :, 1:4:2] = torch.clamp(corners[:, :, 1:4:2], max=width)
-        corners[:, :, 5:8:2] = torch.clamp(corners[:, :, 5:8:2], max=height)
-      
-        return corners
-
 class RegressionModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, feature_size=256):
         super(RegressionModel, self).__init__()

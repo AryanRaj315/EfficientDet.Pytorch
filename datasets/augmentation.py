@@ -51,7 +51,6 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
 def detection_collate(batch):
     imgs = [s['image'] for s in batch]
     annots = [s['bboxes'] for s in batch]
-    corners = [s['corners'] for s in batch]
     labels = [s['category_id'] for s in batch]
     max_num_annots = max(len(annot) for annot in annots)
     annot_padded = np.ones((len(annots), max_num_annots, 5))*-1
@@ -61,4 +60,4 @@ def detection_collate(batch):
             if len(annot) > 0:
                 annot_padded[idx, :len(annot), :4] = torch.Tensor(annot)
                 annot_padded[idx, :len(annot), 4] = torch.Tensor(lab)
-    return (torch.stack(imgs, 0), torch.FloatTensor(annot_padded), torch.FloatTensor(corners))
+    return (torch.stack(imgs, 0), torch.FloatTensor(annot_padded))
