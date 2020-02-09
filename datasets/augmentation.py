@@ -18,24 +18,25 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
             #     width=width, p=0.3),
             # albu.augmentations.transforms.Flip(),
             # albu.augmentations.transforms.Transpose(),
-            albu.Resize(height=height, width=width),
+#             albu.Resize(height=height, width=width),
             albu.OneOf([
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
                 albu.RandomGamma(gamma_limit=(50, 150)),
             ]),
+            albu.ShiftScaleRotate(rotate_limit=20),
             albu.GaussianBlur(),
             albu.Cutout(20,50,50),
             albu.GaussNoise(),
             albu.HueSaturationValue(),
             albu.ISONoise(),
-            albu.CLAHE(p=0.8),
-            # albu.HorizontalFlip(p=0.5),
+#             albu.CLAHE(p=0.8),
+            albu.HorizontalFlip(p=0.5),
             # albu.VerticalFlip(p=0.5),
         ])
     if(phase == 'test' or phase == 'val'):
         list_transforms.extend([
-            albu.Resize(height=height, width=width)
+#             albu.Resize(height=height, width=width)
         ])
     list_transforms.extend([
         albu.Normalize(mean=(0.485, 0.456, 0.406),
