@@ -23,24 +23,39 @@ class SPINEDetection(data.Dataset):
         bboxes = self.bboxes_df[self.bboxes_df.image_id == img_id]
 
         img = cv2.imread(osp.join(self.root, img_id))
-        H_i,W_i,_ = img.shape
-        H = 896*2
-        W = 896
-        f_u = max(W_i/W,1)
-        f_d = min(H_i/H,1)
-        f = f_u*f_d
-        H_n = int(H_i*f)
-        W_n = int(W_i*f)
-        H_n = H_n - H_n%128
-        W_n = W_n - W_n%128
-        img = cv2.resize(img,(W_n,H_n))
-        
         bbox = bboxes.iloc[:,1:5].values
+        H_i,W_i,_ = img.shape
+        H_n = H_i
+        W_n = W_i
+        H_max = 2048
+        W_max = 1024
+        ar = 2
+        ar_i = H_i/W_i
+        if(H_i>H_max and W_i>W_max):
+            if(ar_i>ar):
+                H_n = H_max
+                W_n = H_n/ar_i
+            else:
+                W_n = W_max
+                H_n = W_n*ar_i
+                
+        elif(H_i>H_max):
+            H_n = H_max
+            W_n = H_n/ar_i
+            
+        elif(W_i>W_max):
+            W_n = W_max
+            H_n = W_n*ar_i
+           
+        H_n = int(H_n - H_n%128)
+        W_n = int(W_n - W_n%128)
+        img = cv2.resize(img,(W_n,H_n))
         bbox[:,1]*= H_n/H_i
         bbox[:,3]*= H_n/H_i
         bbox[:,0]*= W_n/W_i
         bbox[:,2]*= W_n/W_i
-        bbox = bbox.astype(int)
+            
+        bbox = bbox.astype(int)   
         
         labels = bboxes.iloc[:,5].values
         if self.transform is not None:
