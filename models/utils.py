@@ -302,7 +302,7 @@ def load_pretrained_weights(model, model_name, load_fc=True):
     """ Loads pretrained weights, and downloads if loading for the first time. """
     state_dict = model_zoo.load_url(url_map[model_name])
     if load_fc:
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict,strict = False)
     else:
         state_dict.pop('_fc.weight')
         state_dict.pop('_fc.bias')
