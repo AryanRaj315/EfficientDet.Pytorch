@@ -11,7 +11,7 @@ import numpy as np
 class SPINEDetection(data.Dataset):
 
     def __init__(self, root, bboxes_df, fileame_df, image_set='training',
-     transform=None, img_size = (1408,768)):
+     transform=None, img_size = (2048,1024)):
         self.root = osp.join(root, image_set)
         self.transform = transform
         self.bboxes_df = bboxes_df
@@ -27,8 +27,8 @@ class SPINEDetection(data.Dataset):
         H_i,W_i,_ = img.shape
         H_n = H_i
         W_n = W_i
-        H_max = 2048
-        W_max = 1024
+        H_max = self.H
+        W_max = self.W
         ar = 2
         ar_i = H_i/W_i
         if(H_i>H_max and W_i>W_max):
