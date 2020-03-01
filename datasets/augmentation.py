@@ -5,33 +5,21 @@ import numpy as np
 import cv2
 
 
-def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility=0.):
+def get_augumentation(phase, width=512, height=1536, min_area=0., min_visibility=0.):
     list_transforms = []
     if phase == 'train':
         list_transforms.extend([
-            # albu.augmentations.transforms.LongestMaxSize(
-            #     max_size=width, always_apply=True),
-            # albu.PadIfNeeded(min_height=height, min_width=width,
-            #                  always_apply=True, border_mode=0, value=[0, 0, 0]),
-            # albu.augmentations.transforms.RandomResizedCrop(
-            #     height=height,
-            #     width=width, p=0.3),
-            # albu.augmentations.transforms.Flip(),
-            # albu.augmentations.transforms.Transpose(),
             albu.Resize(height=height, width=width),
             albu.OneOf([
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
                 albu.RandomGamma(gamma_limit=(50, 150)),
             ]),
+#             albu.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=25, p=.5),
             albu.GaussianBlur(),
-            albu.Cutout(20,50,50),
             albu.GaussNoise(),
             albu.HueSaturationValue(),
-            albu.ISONoise(),
-            albu.CLAHE(p=0.8),
-            # albu.HorizontalFlip(p=0.5),
-            # albu.VerticalFlip(p=0.5),
+#             albu.HorizontalFlip(p=0.5),
         ])
     if(phase == 'test' or phase == 'val'):
         list_transforms.extend([

@@ -11,7 +11,7 @@ import numpy as np
 class SPINEDetection(data.Dataset):
 
     def __init__(self, root, bboxes_df, corners_df, fileame_df, image_set='training',
-     transform=None, img_size = (1408,768)):
+     transform=None, img_size = (1536,512)):
         self.root = osp.join(root, image_set)
         self.transform = transform
         self.bboxes_df = bboxes_df
