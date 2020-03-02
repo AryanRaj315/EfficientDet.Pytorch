@@ -11,12 +11,13 @@ import numpy as np
 class SPINEDetection(data.Dataset):
 
     def __init__(self, root, bboxes_df, fileame_df, image_set='training',
-     transform=None, img_size = (1536,512)):
+     transform=None, img_size = (1536,512),scale_policy = 'resize'):
         self.root = osp.join(root, image_set)
         self.transform = transform
         self.bboxes_df = bboxes_df
         self.fileame_df = fileame_df
         self.H, self.W = img_size
+        self.sp = scale_policy
 
     def __getitem__(self, index):
         img_id = self.fileame_df.iloc[index,0]
@@ -24,36 +25,37 @@ class SPINEDetection(data.Dataset):
 
         img = cv2.imread(osp.join(self.root, img_id))
         bbox = bboxes.iloc[:,1:5].values
-        H_i,W_i,_ = img.shape
-        H_n = H_i
-        W_n = W_i
-        H_max = self.H
-        W_max = self.W
-        ar = H_max/W_max
-        ar_i = H_i/W_i
-        if(H_i>H_max and W_i>W_max):
-            if(ar_i>ar):
+        if self.sp == 'downsample':
+            H_i,W_i,_ = img.shape
+            H_n = H_i
+            W_n = W_i
+            H_max = self.H
+            W_max = self.W
+            ar = H_max/W_max
+            ar_i = H_i/W_i
+            if(H_i>H_max and W_i>W_max):
+                if(ar_i>ar):
+                    H_n = H_max
+                    W_n = H_n/ar_i
+                else:
+                    W_n = W_max
+                    H_n = W_n*ar_i
+
+            elif(H_i>H_max):
                 H_n = H_max
                 W_n = H_n/ar_i
-            else:
+
+            elif(W_i>W_max):
                 W_n = W_max
                 H_n = W_n*ar_i
-                
-        elif(H_i>H_max):
-            H_n = H_max
-            W_n = H_n/ar_i
-            
-        elif(W_i>W_max):
-            W_n = W_max
-            H_n = W_n*ar_i
-           
-        H_n = int(128*round(H_n/128))
-        W_n = int(128*round(W_n/128))
-        img = cv2.resize(img,(W_n,H_n))
-        bbox[:,1]*= H_n/H_i
-        bbox[:,3]*= H_n/H_i
-        bbox[:,0]*= W_n/W_i
-        bbox[:,2]*= W_n/W_i
+
+            H_n = int(128*round(H_n/128))
+            W_n = int(128*round(W_n/128))
+            img = cv2.resize(img,(W_n,H_n))
+            bbox[:,1]*= H_n/H_i
+            bbox[:,3]*= H_n/H_i
+            bbox[:,0]*= W_n/W_i
+            bbox[:,2]*= W_n/W_i
             
         bbox = bbox.astype(int)   
         

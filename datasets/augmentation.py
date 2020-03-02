@@ -5,8 +5,10 @@ import numpy as np
 import cv2
 
 
-def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility=0.):
+def get_augumentation(phase, min_area=0., min_visibility=0., scale_policy='resize'):
     list_transforms = []
+    if scale_policy=='resize':
+        list_transforms.extend([albu.Resize(1536,512)])
     if phase == 'train':
         list_transforms.extend([
             albu.OneOf([
