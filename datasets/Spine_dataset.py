@@ -10,31 +10,53 @@ import numpy as np
 
 class SPINEDetection(data.Dataset):
 
-    def __init__(self, root, bboxes_df, corners_df, fileame_df, image_set='training',
-     transform=None, img_size = (1408,768)):
+    def __init__(self, root, bboxes_df, fileame_df, image_set='training',
+     transform=None, img_size = (1536,512)):
         self.root = osp.join(root, image_set)
         self.transform = transform
         self.bboxes_df = bboxes_df
-        self.corners_df = corners_df
         self.fileame_df = fileame_df
         self.H, self.W = img_size
 
     def __getitem__(self, index):
         img_id = self.fileame_df.iloc[index,0]
         bboxes = self.bboxes_df[self.bboxes_df.image_id == img_id]
-        corners = self.corners_df.iloc[index,:]
 
         img = cv2.imread(osp.join(self.root, img_id))
-        H,W,_ = img.shape
-
-        corner_arr = []
-        for i in range(17):
-            x1,x2,x3,x4 = np.round((self.W)*corners.iloc[4*i:4*(i+1)])
-            y1,y2,y3,y4 = np.round((self.H)*corners.iloc[68+4*i:68+4*(i+1)])
-            corner_arr.append(np.array([x1,x2,x3,x4,y1,y2,y3,y4]))
-
-        corner_arr = np.array(corner_arr)
         bbox = bboxes.iloc[:,1:5].values
+        H_i,W_i,_ = img.shape
+        H_n = H_i
+        W_n = W_i
+        H_max = self.H
+        W_max = self.W
+        ar = H_max/W_max
+        ar_i = H_i/W_i
+        if(H_i>H_max and W_i>W_max):
+            if(ar_i>ar):
+                H_n = H_max
+                W_n = H_n/ar_i
+            else:
+                W_n = W_max
+                H_n = W_n*ar_i
+                
+        elif(H_i>H_max):
+            H_n = H_max
+            W_n = H_n/ar_i
+            
+        elif(W_i>W_max):
+            W_n = W_max
+            H_n = W_n*ar_i
+           
+        H_n = int(128*round(H_n/128))
+        W_n = int(128*round(W_n/128))
+        img = cv2.resize(img,(W_n,H_n))
+        bbox[:,1]*= H_n/H_i
+        bbox[:,3]*= H_n/H_i
+        bbox[:,0]*= W_n/W_i
+        bbox[:,2]*= W_n/W_i
+            
+        bbox = bbox.astype(int)   
+        
         labels = bboxes.iloc[:,5].values
         if self.transform is not None:
             annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
@@ -44,7 +66,7 @@ class SPINEDetection(data.Dataset):
             labels = augmentation['category_id']
 
 
-        return {'image': img, 'bboxes': bbox, 'corners': corner_arr, 'category_id': labels} 
+        return {'image': img, 'bboxes': bbox, 'category_id': labels} 
 
 
     def __len__(self):

@@ -9,33 +9,16 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
     list_transforms = []
     if phase == 'train':
         list_transforms.extend([
-            # albu.augmentations.transforms.LongestMaxSize(
-            #     max_size=width, always_apply=True),
-            # albu.PadIfNeeded(min_height=height, min_width=width,
-            #                  always_apply=True, border_mode=0, value=[0, 0, 0]),
-            # albu.augmentations.transforms.RandomResizedCrop(
-            #     height=height,
-            #     width=width, p=0.3),
-            # albu.augmentations.transforms.Flip(),
-            # albu.augmentations.transforms.Transpose(),
-            albu.Resize(height=height, width=width),
             albu.OneOf([
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
                 albu.RandomGamma(gamma_limit=(50, 150)),
             ]),
+            albu.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=25, p=.5),
             albu.GaussianBlur(),
-            albu.Cutout(20,50,50),
             albu.GaussNoise(),
             albu.HueSaturationValue(),
-            albu.ISONoise(),
-            albu.CLAHE(p=0.8),
-            # albu.HorizontalFlip(p=0.5),
-            # albu.VerticalFlip(p=0.5),
-        ])
-    if(phase == 'test' or phase == 'val'):
-        list_transforms.extend([
-            albu.Resize(height=height, width=width)
+            albu.HorizontalFlip(p=0.5),
         ])
     list_transforms.extend([
         albu.Normalize(mean=(0.485, 0.456, 0.406),
@@ -51,7 +34,6 @@ def get_augumentation(phase, width=768, height=1408, min_area=0., min_visibility
 def detection_collate(batch):
     imgs = [s['image'] for s in batch]
     annots = [s['bboxes'] for s in batch]
-    corners = [s['corners'] for s in batch]
     labels = [s['category_id'] for s in batch]
     max_num_annots = max(len(annot) for annot in annots)
     annot_padded = np.ones((len(annots), max_num_annots, 5))*-1
@@ -61,4 +43,4 @@ def detection_collate(batch):
             if len(annot) > 0:
                 annot_padded[idx, :len(annot), :4] = torch.Tensor(annot)
                 annot_padded[idx, :len(annot), 4] = torch.Tensor(lab)
-    return (torch.stack(imgs, 0), torch.FloatTensor(annot_padded), torch.FloatTensor(corners))
+    return (torch.stack(imgs, 0), torch.FloatTensor(annot_padded))
