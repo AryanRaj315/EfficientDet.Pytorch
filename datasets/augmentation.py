@@ -19,21 +19,21 @@ def get_augumentation(phase, width=512, height=1536, min_area=0., min_visibility
             albu.GaussianBlur(),
             albu.GaussNoise(),
             albu.HueSaturationValue(),
-#             albu.HorizontalFlip(p=0.5),
+            albu.HorizontalFlip(p=0.5),
         ])
     if(phase == 'test' or phase == 'val'):
         list_transforms.extend([
             albu.Resize(height=height, width=width)
         ])
     list_transforms.extend([
-        albu.Normalize(mean=(0.485, 0.456, 0.406),
-                       std=(0.229, 0.224, 0.225), p=1),
+#         albu.Normalize(mean=(0.485, 0.456, 0.406),
+#                        std=(0.229, 0.224, 0.225), p=1),
         ToTensor()
     ])
     if(phase == 'test'):
         return albu.Compose(list_transforms)
     return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area,
-                                                                     min_visibility=min_visibility, label_fields=['category_id']))
+                                                                     min_visibility=min_visibility, label_fields=['category_id']),keypoint_params=albu.KeypointParams(format='xy'))
 
 
 def detection_collate(batch):
