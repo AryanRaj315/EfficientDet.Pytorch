@@ -5,11 +5,13 @@ import numpy as np
 import cv2
 
 
-def get_augumentation(phase, width=512, height=1536, min_area=0., min_visibility=0.):
-    list_transforms = []
+def get_augumentation(phase, width=512, height=1536, min_area=0., min_visibility=0.,downsample = True):
+    if(downsample):
+        list_transforms = []
+    else:
+        list_transforms = [albu.Resize(height=height, width=width),]
     if phase == 'train':
         list_transforms.extend([
-            albu.Resize(height=height, width=width),
             albu.OneOf([
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
@@ -22,12 +24,10 @@ def get_augumentation(phase, width=512, height=1536, min_area=0., min_visibility
             albu.HorizontalFlip(p=0.5),
         ])
     if(phase == 'test' or phase == 'val'):
-        list_transforms.extend([
-            albu.Resize(height=height, width=width)
-        ])
+        pass
     list_transforms.extend([
-#         albu.Normalize(mean=(0.485, 0.456, 0.406),
-#                        std=(0.229, 0.224, 0.225), p=1),
+        albu.Normalize(mean=(0.485, 0.456, 0.406),
+                       std=(0.229, 0.224, 0.225), p=1),
         ToTensor()
     ])
     if(phase == 'test'):
