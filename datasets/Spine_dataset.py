@@ -46,9 +46,9 @@ class SPINEDetection(data.Dataset):
         aug_corners = []
         for i in range(17):
             [(x1,y1),(x2,y2),(x3,y3),(x4,y4)] = corner_arr[4*i:4*i+4]
-            aug_corners.append(np.round(np.array([x1,x2,x3,x4,y1,y2,y3,y4])))
-        aug_corners_ = np.array(aug_corners)
-
+            aug_corners.append(np.round(np.array([x1,x2,x3,x4,y1,y2,y3,y4])).astype(int))
+        aug_corners_ = np.array(aug_corners).astype(int)
+#         print(aug_corners)
         return {'image': img, 'bboxes': bbox, 'corners': aug_corners_, 'category_id': labels} 
 
     def downsample_it(self, img, bbox):
