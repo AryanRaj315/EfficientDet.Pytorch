@@ -1,0 +1,1947 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "accelerator": "GPU",
+    "colab": {
+      "name": "Detectron2_ObjectDetection_SpineCurvatureEstimation.ipynb",
+      "provenance": [],
+      "collapsed_sections": []
+    },
+    "kernelspec": {
+      "display_name": "Python 3",
+      "language": "python",
+      "name": "python3"
+    },
+    "language_info": {
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "file_extension": ".py",
+      "mimetype": "text/x-python",
+      "name": "python",
+      "nbconvert_exporter": "python",
+      "pygments_lexer": "ipython3",
+      "version": "3.7.6"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "vM54r6jlKTII"
+      },
+      "source": [
+        "# Install detectron2"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "9_FzH13EjseR",
+        "colab": {}
+      },
+      "source": [
+        "# install dependencies:\n",
+        "# (use +cu100 because colab is on CUDA 10.0)\n",
+        "# ----------------------UNCOMMENT FROM HERE----------------------------------\n",
+        "!pip install -U torch==1.4+cu100 torchvision==0.5+cu100 -f https://download.pytorch.org/whl/torch_stable.html \n",
+        "!pip install cython pyyaml==5.1\n",
+        "!pip install -U 'git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI'\n",
+        "import torch, torchvision\n",
+        "torch.__version__\n",
+        "!gcc --version\n",
+        "# ---------------------UNCOMMENT TILL HERE-----------------------------------\n",
+        "# opencv is pre-installed on colab"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "qArozQBh0YXl",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# UNCOMMENT WHEN RUNNING THIS NOTEBOOK FOR THE FIRST TIME\n",
+        "!git clone -qq https://github.com/facebookresearch/detectron2 detectron2_repo\n",
+        "\n",
+        "# You can replace cu101 with \"cu{100,92}\" or \"cpu\".\n",
+        "!pip install -qq detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu101/index.html\n",
+        "!cp detectron2_repo/configs ./ -r"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "_c3Zai9b0YXq",
+        "colab_type": "text"
+      },
+      "source": [
+        "Restart runtime in case you are installing detectron for the first time"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "WLoyclmm0YXr",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "import detectron2\n",
+        "from detectron2.utils.logger import setup_logger\n",
+        "setup_logger()\n",
+        "# common libraries\n",
+        "import numpy as np\n",
+        "import cv2\n",
+        "import random\n",
+        "import pandas as pd\n",
+        "import os\n",
+        "\n",
+        "try:\n",
+        "    from google.colab.patches import cv2_imshow\n",
+        "except:\n",
+        "    os.system(f\"\"\"pip install google.colab\"\"\")\n",
+        "    from google.colab.patches import cv2_imshow\n",
+        "import glob\n",
+        "import matplotlib.pyplot as plt\n",
+        "# import some common .detectron2 utilities\n",
+        "from detectron2 import model_zoo\n",
+        "from detectron2.engine import DefaultPredictor\n",
+        "from detectron2.config import get_cfg\n",
+        "from detectron2.utils.visualizer import Visualizer\n",
+        "from detectron2.data import MetadataCatalog\n",
+        "from detectron2.structures import BoxMode"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "b2bjrfb2LDeo"
+      },
+      "source": [
+        "# Train on a custom dataset"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "tjbUIhSxUdm_"
+      },
+      "source": [
+        "If you want to use a custom dataset while also reusing detectron2’s data loaders, you will need to\n",
+        "\n",
+        "* Register your dataset (i.e., tell detectron2 how to obtain your dataset).\n",
+        "* Optionally, register metadata for your dataset.\n",
+        "\n",
+        "## Prepare the dataset"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "tVJoOm6LVJwW"
+      },
+      "source": [
+        "To register your dataset to detectron2, following the [detectron2 custom dataset tutorial](https://detectron2.readthedocs.io/tutorials/datasets.html).\n",
+        "Here, the dataset is in its custom format, therefore we write a function to parse it and prepare it into detectron2's standard format. See the tutorial for more details.\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "TA1e7JSdAwfB",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "!git clone https://github.com/Arnav0400/EfficientDet.Pytorch.git\n",
+        "!wget https://raw.githubusercontent.com/Arnav0400/EfficientDet.Pytorch/working-bbox/test.csv\n",
+        "!wget https://raw.githubusercontent.com/Arnav0400/EfficientDet.Pytorch/working-bbox/train.csv"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "5LmuKI2m9F-U",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "train = pd.read_csv('train.csv')\n",
+        "val = pd.read_csv('test.csv')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "ZjrPF7o09I4W",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "train.label = 0\n",
+        "val.label = 0"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "3tbjTvNuKOJ9",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "val.head()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "WUk-z7UIKrW6",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "ls  "
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "6yRt8u3bKXtB",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "plt.imread('EfficientDet.Pytorch/boostnet_labeldata/data/training/sunhl-1th-01-Mar-2017-310 C AP.jpg')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Y29gF8kxJgkM",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "for i tqdm(range(len(val))):\n",
+        "    plt.imread()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "ohbyys0ig2vs",
+        "colab": {}
+      },
+      "source": [
+        "def get_bb(img_path, img_name, df):\n",
+        "    \"\"\"\n",
+        "        This function returns annotations in the format\n",
+        "        xyxy_ABS: xmin, ymin, xmax, ymax - ABSOLUTE\n",
+        "        \n",
+        "        Function built taking into consideration the dataset\n",
+        "        provided by EAD2020\n",
+        "        \n",
+        "        change the path to the bounding box folder(if not training on EAD)\n",
+        "        and change the loading method(if using .mat) accordingly\n",
+        "    \"\"\"\n",
+        "    # change the path to the bounding box folder(if not training on EAD)\n",
+        "    # and change the loading method accordingly\n",
+        "    bbox = df.loc[df.image_id == img_name].iloc[:, 1:5]\n",
+        "    label = df.label[df.image_id == img_name]\n",
+        "    return np.asarray(bbox), np.asarray(label)\n",
+        "\n",
+        "def _get_dicts(phase):\n",
+        "    if phase == 'train':\n",
+        "        path = 'EfficientDet.Pytorch/boostnet_labeldata/data/training/'\n",
+        "        df = train\n",
+        "    elif phase == 'val':\n",
+        "        path = 'EfficientDet.Pytorch/boostnet_labeldata/data/test/'\n",
+        "        df = val\n",
+        "    else:\n",
+        "        raise(Exception('Provide either \"Train\" or \"Val\"'))\n",
+        "    \n",
+        "    def get_dicts():\n",
+        "        dataset_dicts = []\n",
+        "        img_list = os.listdir(path)\n",
+        "        for idx, i in enumerate(img_list):\n",
+        "            record = {}\n",
+        "            img = plt.imread(path+i)\n",
+        "            height, width = img.shape        \n",
+        "            record[\"file_name\"] = path+i\n",
+        "            record[\"image_id\"] = idx\n",
+        "            record[\"height\"] = height\n",
+        "            record[\"width\"] = width\n",
+        "            proposal_bb, proposal_logits = get_bb(path, i, df)\n",
+        "            objs=[]\n",
+        "            for j in range(len(proposal_bb)):\n",
+        "                obj = {\n",
+        "                    \"bbox\": [proposal_bb[j][0], proposal_bb[j][1], proposal_bb[j][2], proposal_bb[j][3]],\n",
+        "                    \"bbox_mode\": BoxMode.XYXY_ABS,\n",
+        "                    \"category_id\": proposal_logits[j],\n",
+        "                    \"iscrowd\": 0\n",
+        "                }\n",
+        "                objs.append(obj)\n",
+        "            record[\"annotations\"] = objs\n",
+        "            dataset_dicts.append(record)\n",
+        "        return dataset_dicts\n",
+        "    return get_dicts\n",
+        "\n",
+        "from detectron2.data import DatasetCatalog, MetadataCatalog\n",
+        "for d in [\"train\", \"val\"]:\n",
+        "    DatasetCatalog.register(\"spine1_\" + d, _get_dicts(d))\n",
+        "    if d == \"train\":\n",
+        "      MetadataCatalog.get(\"spine1_\" + d).set(thing_classes=[\"Vertebrae\"])\n",
+        "    elif d == \"val\":\n",
+        "      MetadataCatalog.get(\"spine1_\" + d).set(thing_classes=[\"Vertebrae\"],\n",
+        "                                          pred_classes=[\"Vertebrae\"])\n",
+        "spine_metadata = MetadataCatalog.get(\"spine1_train\") \n",
+        "spine_metadata_val = MetadataCatalog.get(\"spine1_val\") "
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "6ljbWTX0Wi8E"
+      },
+      "source": [
+        "## Visualisation\n",
+        "\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "xNdTRchURhWy",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "spine_metadata.get(\"thing_classes\", None)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "UkNbUzUOLYf0",
+        "colab": {}
+      },
+      "source": [
+        "# Uncomment if you want to visualize training data\n",
+        "dataset_dicts = _get_dicts('train')()\n",
+        "for d in random.sample(dataset_dicts, 3):\n",
+        "    img = cv2.imread(d[\"file_name\"])\n",
+        "    visualizer = Visualizer(img[:, :, ::-1], metadata=spine_metadata, scale=0.5)\n",
+        "    vis = visualizer.draw_dataset_dict(d)\n",
+        "    cv2_imshow(vis.get_image()[:, :, ::-1])\n",
+        "    "
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "WI4FpuVhehDA",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from google.colab import drive\n",
+        "drive.mount('/content/drive')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "wlqXIXXhW8dA"
+      },
+      "source": [
+        "### To choose model:\n",
+        "    detectron2_repo-->configs\n",
+        "    Accordingly choose Detection or whatever you require\n",
+        "    For eg:\n",
+        "        \"detectron2_repo/configs/COCO-Detection/retinanet_R_50_FPN_3x.yaml\"\n",
+        "### To get weights:\n",
+        "    detectron2_repo-->detectron2-->model_zoo-->model_zoo.py\n",
+        "    For eg: copy any link\n",
+        "        \"COCO-Detection/faster_rcnn_R_50_C4_3x.yaml\": \"137849393/model_final_f97cb7.pkl\"\n",
+        "    delete the mid part and add detectron2:// to the start\n",
+        "        \"detectron2://COCO-Detection/faster_rcnn_R_50_C4_3x/137849393/model_final_f97cb7.pkl\"\n",
+        "    use this format as a link to get the model weights"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "x-Lz37_u0YYE",
+        "colab_type": "text"
+      },
+      "source": [
+        "# Train"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "1vro2iPXBdgz",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from detectron2_repo.detectron2.data import transforms as T\n",
+        "import copy\n",
+        "import torch\n",
+        "from detectron2_repo.detectron2.data import detection_utils as utils\n",
+        "import os\n",
+        "import detectron2.utils.comm as comm\n",
+        "from detectron2.checkpoint import DetectionCheckpointer\n",
+        "from detectron2.config import get_cfg\n",
+        "from detectron2.data import build_detection_test_loader, build_detection_train_loader\n",
+        "from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch\n",
+        "from detectron2.evaluation import COCOEvaluator, DatasetEvaluators, verify_results\n",
+        "from detectron2.utils.logger import setup_logger"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "TP55esQMBXW4",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "class Mapper:\n",
+        "    \"\"\"\n",
+        "    A callable which takes a dataset dict in Detectron2 Dataset format,\n",
+        "    and map it into a format used by the model.\n",
+        "    This is the default callable to be used to map your dataset dict into training data.\n",
+        "    You may need to follow it to implement your own one for customized logic,\n",
+        "    such as a different way to read or transform images.\n",
+        "    See :doc:`/tutorials/data_loading` for details.\n",
+        "    The callable currently does the following:\n",
+        "    1. Read the image from \"file_name\"\n",
+        "    2. Applies cropping/geometric transforms to the image and annotations\n",
+        "    3. Prepare data and annotations to Tensor and :class:`Instances`\n",
+        "    \"\"\"\n",
+        "\n",
+        "    def __init__(self, cfg, is_train=True):\n",
+        "        if cfg.INPUT.CROP.ENABLED and is_train:\n",
+        "            self.crop_gen = T.RandomCrop(cfg.INPUT.CROP.TYPE, cfg.INPUT.CROP.SIZE)\n",
+        "            logging.getLogger(__name__).info(\"CropGen used in training: \" + str(self.crop_gen))\n",
+        "        else:\n",
+        "            self.crop_gen = None\n",
+        "\n",
+        "        # self.tfm_gens = utils.build_transform_gen(cfg, is_train)\n",
+        "\n",
+        "        # fmt: off\n",
+        "        self.tfm_gens = utils.build_transform_gen(cfg, is_train)\n",
+        "        self.img_format     = cfg.INPUT.FORMAT\n",
+        "        self.mask_on        = cfg.MODEL.MASK_ON\n",
+        "        self.mask_format    = cfg.INPUT.MASK_FORMAT\n",
+        "        self.keypoint_on    = cfg.MODEL.KEYPOINT_ON\n",
+        "        self.load_proposals = cfg.MODEL.LOAD_PROPOSALS\n",
+        "        self.transform_list_mod = [T.RandomBrightness(0.8, 1.2),\n",
+        "                                  T.RandomContrast(0.8, 1.2),\n",
+        "                                  T.RandomFlip(prob=0.5, horizontal=True, vertical=False),\n",
+        "                                  T.RandomSaturation(0.8, 1.2)]\n",
+        "        # fmt: on\n",
+        "        if self.keypoint_on and is_train:\n",
+        "            # Flip only makes sense in training\n",
+        "            self.keypoint_hflip_indices = utils.create_keypoint_hflip_indices(cfg.DATASETS.TRAIN)\n",
+        "        else:\n",
+        "            self.keypoint_hflip_indices = None\n",
+        "\n",
+        "        if self.load_proposals:\n",
+        "            self.min_box_side_len = cfg.MODEL.PROPOSAL_GENERATOR.MIN_SIZE\n",
+        "            self.proposal_topk = (\n",
+        "                cfg.DATASETS.PRECOMPUTED_PROPOSAL_TOPK_TRAIN\n",
+        "                if is_train\n",
+        "                else cfg.DATASETS.PRECOMPUTED_PROPOSAL_TOPK_TEST\n",
+        "            )\n",
+        "        self.is_train = is_train\n",
+        "\n",
+        "    def __call__(self, dataset_dict):\n",
+        "        \"\"\"\n",
+        "        Args:\n",
+        "            dataset_dict (dict): Metadata of one image, in Detectron2 Dataset format.\n",
+        "        Returns:\n",
+        "            dict: a format that builtin models in detectron2 accept\n",
+        "        \"\"\"\n",
+        "        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below\n",
+        "        # USER: Write your own image loading if it's not from a file\n",
+        "        image = utils.read_image(dataset_dict[\"file_name\"], format=self.img_format)\n",
+        "        utils.check_image_size(dataset_dict, image)\n",
+        "\n",
+        "        if \"annotations\" not in dataset_dict:\n",
+        "            image, transforms = T.apply_transform_gens(\n",
+        "                self.transform_list_mod , image\n",
+        "            )\n",
+        "        else:\n",
+        "            # Crop around an instance if there are instances in the image.\n",
+        "            # USER: Remove if you don't use cropping\n",
+        "            if self.crop_gen:\n",
+        "                crop_tfm = utils.gen_crop_transform_with_instance(\n",
+        "                    self.crop_gen.get_crop_size(image.shape[:2]),\n",
+        "                    image.shape[:2],\n",
+        "                    np.random.choice(dataset_dict[\"annotations\"]),\n",
+        "                )\n",
+        "                image = crop_tfm.apply_image(image)\n",
+        "            image, transforms = T.apply_transform_gens(self.tfm_gens, image)\n",
+        "            if self.crop_gen:\n",
+        "                transforms = crop_tfm + transforms\n",
+        "\n",
+        "        image_shape = image.shape[:2]  # h, w\n",
+        "\n",
+        "        # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,\n",
+        "        # but not efficient on large generic data structures due to the use of pickle & mp.Queue.\n",
+        "        # Therefore it's important to use torch.Tensor.\n",
+        "        dataset_dict[\"image\"] = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))\n",
+        "\n",
+        "        # USER: Remove if you don't use pre-computed proposals.\n",
+        "        if self.load_proposals:\n",
+        "            utils.transform_proposals(\n",
+        "                dataset_dict, image_shape, transforms, self.min_box_side_len, self.proposal_topk\n",
+        "            )\n",
+        "\n",
+        "        if not self.is_train:\n",
+        "            # USER: Modify this if you want to keep them for some reason.\n",
+        "            dataset_dict.pop(\"annotations\", None)\n",
+        "            dataset_dict.pop(\"sem_seg_file_name\", None)\n",
+        "            return dataset_dict\n",
+        "\n",
+        "        if \"annotations\" in dataset_dict:\n",
+        "            # USER: Modify this if you want to keep them for some reason.\n",
+        "            for anno in dataset_dict[\"annotations\"]:\n",
+        "                if not self.mask_on:\n",
+        "                    anno.pop(\"segmentation\", None)\n",
+        "                if not self.keypoint_on:\n",
+        "                    anno.pop(\"keypoints\", None)\n",
+        "\n",
+        "            # USER: Implement additional transformations if you have other types of data\n",
+        "            annos = [\n",
+        "                utils.transform_instance_annotations(\n",
+        "                    obj, transforms, image_shape, keypoint_hflip_indices=self.keypoint_hflip_indices\n",
+        "                )\n",
+        "                for obj in dataset_dict.pop(\"annotations\")\n",
+        "                if obj.get(\"iscrowd\", 0) == 0\n",
+        "            ]\n",
+        "            instances = utils.annotations_to_instances(\n",
+        "                annos, image_shape, mask_format=self.mask_format\n",
+        "            )\n",
+        "            # Create a tight bounding box from masks, useful when image is cropped\n",
+        "            if self.crop_gen and instances.has(\"gt_masks\"):\n",
+        "                instances.gt_boxes = instances.gt_masks.get_bounding_boxes()\n",
+        "            dataset_dict[\"instances\"] = utils.filter_empty_instances(instances)\n",
+        "\n",
+        "        # USER: Remove if you don't do semantic/panoptic segmentation.\n",
+        "        if \"sem_seg_file_name\" in dataset_dict:\n",
+        "            with PathManager.open(dataset_dict.pop(\"sem_seg_file_name\"), \"rb\") as f:\n",
+        "                sem_seg_gt = Image.open(f)\n",
+        "                sem_seg_gt = np.asarray(sem_seg_gt, dtype=\"uint8\")\n",
+        "            sem_seg_gt = transforms.apply_segmentation(sem_seg_gt)\n",
+        "            sem_seg_gt = torch.as_tensor(sem_seg_gt.astype(\"long\"))\n",
+        "            dataset_dict[\"sem_seg\"] = sem_seg_gt\n",
+        "        return dataset_dict"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "oVYRVw6BBahh",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "class Trainer(DefaultTrainer):\n",
+        "    @classmethod\n",
+        "    def build_evaluator(cls, cfg, dataset_name):\n",
+        "        output_folder = os.path.join(cfg.OUTPUT_DIR, \"inference\")\n",
+        "        evaluators = [COCOEvaluator(dataset_name, cfg, True, output_folder)]\n",
+        "        if cfg.MODEL.DENSEPOSE_ON:\n",
+        "            evaluators.append(DensePoseCOCOEvaluator(dataset_name, True, output_folder))\n",
+        "        return DatasetEvaluators(evaluators)\n",
+        "\n",
+        "    @classmethod\n",
+        "    def build_test_loader(cls, cfg, dataset_name):\n",
+        "        return build_detection_test_loader(cfg, dataset_name, mapper=Mapper(cfg, False))\n",
+        "\n",
+        "    @classmethod\n",
+        "    def build_train_loader(cls, cfg):\n",
+        "        return build_detection_train_loader(cfg, mapper=Mapper(cfg, True))"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "7unkuuiqLdqd",
+        "colab": {}
+      },
+      "source": [
+        "from detectron2.engine import DefaultTrainer\n",
+        "from detectron2.config import get_cfg\n",
+        "\n",
+        "cfg = get_cfg()\n",
+        "\n",
+        "config_file = \"COCO-Detection/faster_rcnn_R_101_C4_3x.yaml\"\n",
+        "# config_file = \"COCO-Detection/faster_rcnn_R_101_DC5_3x.yaml\"\n",
+        "# config_file = \"COCO-Detection/retinanet_R_50_FPN_3x.yaml\"\n",
+        "# config_file = \"COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml\"\n",
+        "\n",
+        "cfg.merge_from_file(f\"configs/{config_file}\")\n",
+        "cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(config_file)\n",
+        "# cfg.MODEL.WEIGHTS = f\"detectron2://{config_file[:-5]}/{weights_url}\"  # initialize from model zoo\n",
+        "\n",
+        "\n",
+        "cfg.DATASETS.TRAIN = (\"spine1_train\",)\n",
+        "cfg.DATASETS.TEST = (\"spine1_train\",)   # no metrics implemented for this dataset\n",
+        "cfg.DATALOADER.NUM_WORKERS = 2\n",
+        "\n",
+        "\n",
+        "cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 256 \n",
+        "cfg.MODEL.ROI_HEADS.NUM_CLASSES = 8\n",
+        "cfg.MODEL.RETINANET.NUM_CLASSES = 8"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "scrolled": true,
+        "id": "P4HlQgTp0YYK",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# Automatically switch to a new tensorboard directory every time this cell is executed\n",
+        "i = 1\n",
+        "name_desc = config_file  # Extended Name for the Run\n",
+        "notes= config_file + \": Serious run\"  # Notes, if any\n",
+        "\n",
+        "while os.path.exists(os.path.join(cfg.OUTPUT_DIR, f'run{i}')):\n",
+        "    i += 1\n",
+        "\n",
+        "cfg.SOLVER.IMS_PER_BATCH = 4\n",
+        "cfg.SOLVER.BASE_LR = 0.0025\n",
+        "cfg.SOLVER.MAX_ITER = 1500\n",
+        "cfg.OUTPUT_DIR = os.path.join('./output/', f'run{i}')\n",
+        "os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)\n",
+        "\n",
+        "# Create trainer\n",
+        "trainer = Trainer(cfg) \n",
+        "trainer.resume_or_load(resume=False)\n",
+        "\n",
+        "# WandB\n",
+        "config = dict(cfg)\n",
+        "del config['MODEL']\n",
+        "\n",
+        "# Commence Training\n",
+        "# trainer.train()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "0e4vdDIOXyxF"
+      },
+      "source": [
+        "## Inference & evaluation using the trained model\n",
+        "\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "qWq1XHfDWiXO"
+      },
+      "source": [
+        "Then, we randomly select several samples to visualize the prediction results."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "ka1nYDpr0YYb",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "cfg.confidence_threshold = 0.4\n",
+        "\n",
+        "from detectron2.evaluation import COCOEvaluator, inference_on_dataset\n",
+        "from detectron2.data import build_detection_test_loader\n",
+        "\n",
+        "cfg.MODEL.WEIGHTS = os.path.join(\"drive/My Drive/Model_RCNN/model_final.pth\")\n",
+        "\n",
+        "trainer.resume_or_load(resume=False)\n",
+        "\n",
+        "cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.RETINANET.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = cfg.confidence_threshold "
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "GQYFOoV7UoQ1",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "!wget --header=\"Host: n1cmcifi.gradient.paperspace.com\" --header=\"User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.122 Safari/537.36\" --header=\"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9\" --header=\"Accept-Language: en-GB,en-US;q=0.9,en;q=0.8\" --header=\"Referer: https://n1cmcifi.gradient.paperspace.com/tree/storage\" --header=\"Cookie: _gcl_au=1.1.1667131129.1580132314; _ga=GA1.2.2106986882.1580132314; ajs_group_id=null; hubspotutk=3a07ae068ddf7242eec0cf8cf7ec51f3; __hssrc=1; _fbp=fb.1.1580132326512.1575742389; __cfduid=de4cc529f615defbf1d33c67f101a56641582793600; ajs_user_id=%22725331%22; ajs_anonymous_id=%22e050b6e1-31ec-481c-981c-eb5f56f20dc7%22; username-n1cmcifi-gradient-paperspace-com=\"2|1:0|10:1583573211|41:username-n1cmcifi-gradient-paperspace-com|44:ODM4NWFmOTk0ODA1NDIwM2FhMWVkNzFlZDVmZjlkY2Y=|979e0a6f949fc7bad5f24e73f6f4a50a08c185cb717f9a0d97fb549a4f90be54\"; _xsrf=2|a7c16ff7|cd25302fb971ff9512e6b5604a366fd3|1583573211; _gid=GA1.2.1664767584.1583591959; _hp2_ses_props.2513992153=%7B%22ts%22%3A1583591958273%2C%22d%22%3A%22www.paperspace.com%22%2C%22h%22%3A%22%2Faccount%2Flogin%22%2C%22q%22%3A%22%3Fredirect%3D%252Fconsole%22%7D; __hstc=56075956.3a07ae068ddf7242eec0cf8cf7ec51f3.1580132318038.1583420339666.1583591959669.31; _cio=5dbed8eb-73b3-82dd-92e4-2a2457f72fee; _hp2_id.2513992153=%7B%22userId%22%3A%227208498489345016%22%2C%22pageviewId%22%3A%221861414297015364%22%2C%22sessionId%22%3A%221704883014752701%22%2C%22identity%22%3A%22725331%22%2C%22trackerVersion%22%3A%224.0%22%2C%22identityField%22%3Anull%2C%22isIdentified%22%3A1%2C%22oldIdentity%22%3Anull%7D; __hssc=56075956.4.1583591959669\" --header=\"Connection: keep-alive\" \"https://n1cmcifi.gradient.paperspace.com/files/storage/d4-resize-(1536%2C512)c.pth?download=1\" -O \"d4-resize-(1536,512)c.pth\" -c"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "tISR5Nk_0YYf",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# evaluator = COCOEvaluator(\"endo1_val\", cfg, False, output_dir=\"./output/\")\n",
+        "# val_loader = build_detection_test_loader(cfg, \"endo1_val\")\n",
+        "# inference_on_dataset(trainer.model, val_loader, (evaluator, ))\n",
+        "# trainer.test(, cfg, )\n",
+        "# evaluator = COCOEvaluator(\"endo1_val\", cfg, False, output_dir=\"./output/\")\n",
+        "# val_loader = build_detection_test_loader(cfg, \"endo1_val\")\n",
+        "# inference_on_dataset(trainer.model, val_loader, evaluator)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "fgJJlX5s0YYj",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "??Visualizer"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "U5LhISJqWXgM",
+        "scrolled": true,
+        "colab": {}
+      },
+      "source": [
+        "from detectron2.utils.visualizer import ColorMode\n",
+        "\n",
+        "cfg.DATASETS.TEST = (\"spine1_val\", )\n",
+        "predictor = DefaultPredictor(cfg)\n",
+        "\n",
+        "for t in ['train', 'val']:\n",
+        "    dataset_dicts = _get_dicts(t)()\n",
+        "\n",
+        "    print(\"\\n\"*2 + t.upper() + \"\\n\"*2)\n",
+        "    for d in random.sample(dataset_dicts, 10):\n",
+        "        im = cv2.imread(d[\"file_name\"])\n",
+        "        outputs = predictor(im)\n",
+        "        v = Visualizer(im[:, :, ::-1],\n",
+        "                       metadata=MetadataCatalog.get(f\"spine1_{t}\"), \n",
+        "                       scale=0.8, \n",
+        "#                        instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels\n",
+        "        )\n",
+        "        v = v.draw_instance_predictions(outputs[\"instances\"].to(\"cpu\"))\n",
+        "#         v = v.draw_instance_predictions(outputs[\"proposals\"].to(\"cpu\"))\n",
+        "        cv2_imshow(v.get_image()[:, :, ::-1])\n",
+        "        os.makedirs(os.path.join(cfg.OUTPUT_DIR, f'{t}_preds/'), exist_ok=True)\n",
+        "        \n",
+        "        # WandB\n",
+        "        # wandb.log({f\"{t}: {d['file_name']}\": [wandb.Image(v.get_image(), caption=f\"Threshold: {cfg.confidence_threshold}\")]})"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "zp6Ue5cy0YYw",
+        "colab_type": "text"
+      },
+      "source": [
+        "# Predict "
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Z096kj3M0YYx",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def _get_dicts_test(folder='EfficientDet.Pytorch/boostnet_labeldata/data/test'):\n",
+        "    path = folder\n",
+        "    def get_dicts_test():\n",
+        "        dataset_dicts = []\n",
+        "        img_list = os.listdir(path)\n",
+        "        for idx, i in enumerate(img_list):\n",
+        "            record = {}\n",
+        "            try:\n",
+        "                # print(os.path.join(path, i))\n",
+        "                img = cv2.imread(os.path.join(path, i))\n",
+        "                height, width, _ = img.shape\n",
+        "            except Exception as e:\n",
+        "                print(e)\n",
+        "                continue\n",
+        "            record[\"file_name\"] = os.path.join(path, i)\n",
+        "            record[\"image_id\"] = idx\n",
+        "            record[\"height\"] = height\n",
+        "            record[\"width\"] = width\n",
+        "            record[\"thing_classes\"] = [\"Vertebrae\"]\n",
+        "            dataset_dicts.append(record)\n",
+        "        return dataset_dicts\n",
+        "    return get_dicts_test\n",
+        "\n",
+        "\n",
+        "def create_txt(a, name):\n",
+        "    \"\"\"\n",
+        "       This function will create a .txt file of the name given\n",
+        "       or append to the existing one.\n",
+        "    \"\"\"\n",
+        "\n",
+        "    save_path = 'val_preds'\n",
+        "    os.makedirs(save_path, exist_ok=True)\n",
+        "    \n",
+        "    path=f\"{save_path}/{name}\"\n",
+        "    \n",
+        "    pred_boxes = a['pred_boxes'].tensor.detach().cpu().numpy()\n",
+        "    scores = a['scores'].detach().cpu().numpy()\n",
+        "    pred_classes = a['pred_classes'].detach().cpu().numpy()\n",
+        "    names = {0:'Vertebrae'}\n",
+        "    \n",
+        "    f = open(path, 'a+')\n",
+        "    for i in range(len(pred_boxes)):\n",
+        "        x1, y1, x2, y2 = pred_boxes[i]\n",
+        "        label = pred_classes[i]\n",
+        "        confidence = scores[i]\n",
+        "        content = \"Vertebrae\"+\" \"+str(confidence)+\" \"+str(int((x1)))+\" \"+str(int(y1))+\" \"+str(int(x2))+\" \"+str(int(y2))+\"\\n\"\n",
+        "        f.write(content)\n",
+        "    print(f'\\rSaved {path}', end='')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "9IRkANp8O4XL",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "!git clone 'https://github.com/rafaelpadilla/Object-Detection-Metrics.git'"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "bKCMb_TiRxJA",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from tqdm.notebook import tqdm"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "A3HHenKHUeYC",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "outputs[1]['instances'].get_fields()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "9BjQVsk2PNhY",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "cfg.confidence_threshold = 0.5\n",
+        "cfg.MODEL.WEIGHTS = os.path.join(\"drive/My Drive/Model_RCNN/model_final.pth\")\n",
+        "visualize_preds = True\n",
+        "trainer.resume_or_load(resume=False)\n",
+        "\n",
+        "\n",
+        "cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.RETINANET.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = cfg.confidence_threshold \n",
+        "\n",
+        "j = 1\n",
+        "# while os.path.exists(f\"spine_test{j}\"):\n",
+        "#     j += 1\n",
+        "#     j -= 1\n",
+        "# os.makedirs(f\"spine_test{j}\")\n",
+        "folder = 'test'\n",
+        "# for folder in ['Detection', 'Detection_sequence', 'Generalization']:\n",
+        "print(f'\\n\\n{folder}\\n\\n')\n",
+        "folder = os.path.join('EfficientDet.Pytorch/boostnet_labeldata/data/', folder)\n",
+        "dataset_dicts = _get_dicts_test(folder=folder)()\n",
+        "outputs = []\n",
+        "files = []\n",
+        "print('reached checkpoint 1')\n",
+        "predictor = DefaultPredictor(cfg)\n",
+        "print('reached checkpoint 2')\n",
+        "print(f'Predicting on {folder}...', end='')\n",
+        "for d in dataset_dicts:\n",
+        "    im = cv2.imread(d[\"file_name\"])\n",
+        "    output = predictor(im)\n",
+        "    outputs.append(output)\n",
+        "    files.append(f\"{os.path.basename(d['file_name'])[:-4]}.txt\")\n",
+        "print('Done!')\n",
+        "\n",
+        "if visualize_preds:\n",
+        "    print('Sample Predictions')\n",
+        "    for i in random.sample(range(len(outputs)), 3):\n",
+        "        output, file = outputs[i], files[i]\n",
+        "        im = cv2.imread(os.path.join(folder, file[:-4] + '.jpg'))\n",
+        "        v = Visualizer(im[:, :, ::-1],\n",
+        "                    metadata=MetadataCatalog.get(f\"spine1_val\"), \n",
+        "                    scale=0.8, \n",
+        "        )\n",
+        "        v = v.draw_instance_predictions(output[\"instances\"].to(\"cpu\"))\n",
+        "        cv2_imshow(v.get_image()[:, :, ::-1])\n",
+        "\n",
+        "    for i in tqdm(range(len(outputs))):\n",
+        "        output = outputs[i]['instances'].get_fields()\n",
+        "        create_txt(output, files[i])"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "oqcIZ6G30YY4",
+        "colab_type": "text"
+      },
+      "source": [
+        "## Try on any folder"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "znjpOW_WThjO",
+        "colab_type": "text"
+      },
+      "source": [
+        "#### Pass the csv with bounding box info and get a folder created with .txt files of the same name"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "yWt89ypCcMic",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def create_txt(boxes):\n",
+        "    \"\"\"\n",
+        "       This function will create a .txt file of the name given\n",
+        "       or append to the existing one.\n",
+        "    \"\"\"\n",
+        "\n",
+        "    save_path = 'ground_truth'\n",
+        "    os.makedirs(save_path, exist_ok=True)\n",
+        "    \n",
+        "    for i in range(len(boxes)):\n",
+        "        name = boxes.image_id.loc[i][:-3]+'txt'\n",
+        "        path=f\"{save_path}/{name}\"\n",
+        "        f = open(path, 'a+')\n",
+        "        x1, y1, x2, y2 = np.asarray(boxes.iloc[i, 1:5])\n",
+        "        label = 1\n",
+        "        content = \"Vertebrae\"+\" \"+str(int((x1)))+\" \"+str(int(y1))+\" \"+str(int(x2))+\" \"+str(int(y2))+\"\\n\"\n",
+        "        f.write(content)\n",
+        "    print(f'\\rSaved {path}', end='')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "2KItKLSSguAy",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# !cp -r 'drive/My Drive/val_preds' '.'"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "8TvFPfHpfLaD",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# !rm -r ground_truth"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "X_4xjHgkT65X",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "boxes_train = pd.read_csv('train.csv')\n",
+        "boxes_val = pd.read_csv('test.csv')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "eijioKLAfAFJ",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "create_txt(boxes_val)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "NkGzYUUunrmB",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "import sys\n",
+        "sys.path.insert(0, 'Object_Detection_Metrics/lib/')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "3nt-__KFWNxI",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from Object_Detection_Metrics.lib import BoundingBox\n",
+        "from Object_Detection_Metrics.lib import Evaluator"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Dx34HSmitkh3",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "evalu= Evaluator.Evaluator()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "TPx_-UdgpZfX",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "val_txts = sorted(glob.glob('val_preds/*'))\n",
+        "gt_txts = sorted(glob.glob('ground_truth/*'))"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "3equxtj340-B",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def get_bboxes(val_txt, gt_txt):\n",
+        "  f_val = open(val_txt,'r')\n",
+        "  f_gt = open(gt_txt,'r')\n",
+        "  bbs_val=[]\n",
+        "  bbs_gt = []\n",
+        "  while(True):\n",
+        "    val_bb = f_val.readline()\n",
+        "    gt_bb = f_gt.readline()\n",
+        "    print(val_bb)\n",
+        "    img_name = 'a'\n",
+        "    classId = '1'\n",
+        "    try:\n",
+        "      conf,x,y,x2,y2 = float(val_bb.split(' ')[1]),int(val_bb.split(' ')[2]), int(val_bb.split(' ')[3]), int(val_bb.split(' ')[4]), int(val_bb.split(' ')[5])\n",
+        "      x_gt,y_gt,x2_gt,y2_gt = int(gt_bb.split(' ')[1]), int(gt_bb.split(' ')[2]), int(gt_bb.split(' ')[3]), int(gt_bb.split(' ')[4])\n",
+        "      print(y2)\n",
+        "      bbs_val.append(BoundingBox.BoundingBox(imageName=img_name,classId = classId, x=x,y=y,w=x2-x,h=y2-y,imgSize=None,bbType=BBType.Detected,classConfidence=conf,\n",
+        "                  format=BBFormat.XYWH))\n",
+        "      bbs_gt.append(BoundingBox.BoundingBox(imageName=img_name,classId = classId, x=x_gt,y=y_gt,w=x2_gt-x_gt,h=y2_gt-y_gt,imgSize=None,bbType=BBType.GroundTruth,classConfidence=None,\n",
+        "                  format=BBFormat.XYWH))\n",
+        "    except:\n",
+        "      break\n",
+        "  return [bbs_val,bbs_gt]"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "ZMjFf10Jp7QG",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "ious = []\n",
+        "for val_txt,gt_txt in zip(val_txts, gt_txts):\n",
+        "  [bbs_val,bbs_gt] = get_bboxes(val_txt,gt_txt)\n",
+        "  # print(bbs_val,bbs_gt)\n",
+        "  # print(len(bbs_val))\n",
+        "  for bb_val in bbs_val:\n",
+        "    iou_max = 0\n",
+        "    for bb_gt in bbs_gt:\n",
+        "      iou= evalu.iou(bb_val.getAbsoluteBoundingBox(BBFormat.XYX2Y2),bb_gt.getAbsoluteBoundingBox(BBFormat.XYX2Y2))\n",
+        "      print(iou)\n",
+        "      if(iou>iou_max):\n",
+        "        iou_max = iou\n",
+        "    ious.append(iou_max)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "bRl0yc8j7fqU",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "ious"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "xIwAKgalrcjf",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from utils import *"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "e-MEZJkun5Mr",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "evaluator = Evaluator.Evaluator()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "ciaxt0VBoNvT",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "class BoundingBox:\n",
+        "    def __init__(self,\n",
+        "                 imageName,\n",
+        "                 classId,\n",
+        "                 x,\n",
+        "                 y,\n",
+        "                 w,\n",
+        "                 h,\n",
+        "                 typeCoordinates=CoordinatesType.Absolute,\n",
+        "                 imgSize=None,\n",
+        "                 bbType=BBType.GroundTruth,\n",
+        "                 classConfidence=None,\n",
+        "                 format=BBFormat.XYWH):"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "hLIQRLvkoA8p",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "evaluator.iou()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "U5g1dWWAbocy",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "boxes = pd.read_csv('test.csv')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "4fuk11avXnlk",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "!python Object_Detection_Metrics/pascalvoc.py -gt ../ground_truth/ -det ../detections/ -gtformat xyrb -detformat xyrb -imgsize 1536,512 "
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "DUs3QCxViEth",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "evaluator = Evaluator.Evaluator()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "g2XgEOanh9b7",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "evaluator.GetPascalVOCMetrics(boundingboxes, IOUThreshold=0.5,\n",
+        "                            method=MethodAveragePrecision.EveryPointInterpolation)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "paJHFWu6gIq6",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "boxes_train = pd.read_csv('train.csv')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "6dBJMMGq0YY6",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def _get_dicts_test(folder='EndoCV_Det/HOLDOUT/images/'):\n",
+        "    path = folder\n",
+        "    def get_dicts_test():\n",
+        "        dataset_dicts = []\n",
+        "        img_list = os.listdir(path)\n",
+        "#         print(img_list)\n",
+        "        for idx, i in enumerate(img_list):\n",
+        "            record = {}\n",
+        "            try:\n",
+        "                img = plt.imread(path+i)\n",
+        "                height, width, _ = img.shape\n",
+        "            except:\n",
+        "                print(i)\n",
+        "                continue\n",
+        "            record[\"file_name\"] = path+i\n",
+        "            record[\"image_id\"] = idx\n",
+        "            record[\"height\"] = height\n",
+        "            record[\"width\"] = width\n",
+        "            record[\"thing_classes\"] = [\"specularity\",\"saturation\",\n",
+        "                                          \"artifact\", \"blur\", \"contrast\", \"bubbles\",\n",
+        "                                          \"instrument\", \"blood\"]\n",
+        "            dataset_dicts.append(record)\n",
+        "        return dataset_dicts\n",
+        "    return get_dicts_test"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "scrolled": true,
+        "id": "FJ4q3cUE0YY-",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "folder = 'EndoCV_Det/TEST/Detection/'\n",
+        "cfg.confidence_threshold = 0.5\n",
+        "cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, \"model_final.pth\")\n",
+        "visualize_preds = True\n",
+        "n_samples = 10\n",
+        "trainer.resume_or_load(resume=False)\n",
+        "\n",
+        "cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.RETINANET.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = cfg.confidence_threshold\n",
+        "cfg.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = cfg.confidence_threshold \n",
+        "\n",
+        "from detectron2.utils.visualizer import ColorMode\n",
+        "\n",
+        "cfg.DATASETS.TEST = (\"endo1_val\", )\n",
+        "predictor = DefaultPredictor(cfg)\n",
+        "\n",
+        "dataset_dicts = _get_dicts_test(folder=folder)()\n",
+        "\n",
+        "for d in random.sample(dataset_dicts, n_samples):\n",
+        "    im = cv2.imread(d[\"file_name\"])\n",
+        "    outputs = predictor(im)\n",
+        "    v = Visualizer(im[:, :, ::-1],\n",
+        "                   metadata=MetadataCatalog.get(f\"endo1_val\"), \n",
+        "                   scale=0.8, \n",
+        "#                        instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels\n",
+        "    )\n",
+        "    v = v.draw_instance_predictions(outputs[\"instances\"].to(\"cpu\"))\n",
+        "#         v = v.draw_instance_predictions(outputs[\"proposals\"].to(\"cpu\"))\n",
+        "    cv2_imshow(v.get_image()[:, :, ::-1])\n",
+        "#     os.makedirs(os.path.join(cfg.OUTPUT_DIR, f'{t}_preds/'), exist_ok=True)\n",
+        "\n",
+        "    # WandB\n",
+        "#     wandb.log({f\"{t}: {d['file_name']}\": [wandb.Image(v.get_image(), caption=f\"Threshold: {cfg.confidence_threshold}\")]})"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "NMpDMXyJ0YZB",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "ls EndoCV_Det/TEST/\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "eY8QsRpj0YZG",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "outputs['proposals'].get_fields().keys()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "seObdNXg0YZK",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "nms_thresh = 0.1\n",
+        "score_thresh = 0.7\n",
+        "\n",
+        "for d in random.sample(dataset_dicts, 2):\n",
+        "    im = cv2.imread(d[\"file_name\"])\n",
+        "    outputs = predictor(im)\n",
+        "    v = Visualizer(im[:, :, ::-1],\n",
+        "                   metadata=MetadataCatalog.get(f\"endo1_{t}\"), \n",
+        "                   scale=0.8, \n",
+        "#                        instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels\n",
+        "    )\n",
+        "\n",
+        "\n",
+        "    boxes = outputs['proposals'].get_fields()['proposal_boxes'].tensor.to('cpu')\n",
+        "    scores = outputs['proposals'].get_fields()['objectness_logits'].sigmoid().to('cpu')\n",
+        "\n",
+        "    nms_idx = torchvision.ops.nms(boxes, scores, nms_thresh)\n",
+        "    score_idx = torch.arange(0, len(boxes))[scores >= score_thresh]\n",
+        "    idx = torch.tensor(list(set(list(score_idx.cpu().numpy())).intersection(set(list(nms_idx.cpu().numpy())))))\n",
+        "\n",
+        "    v=v.overlay_instances(boxes=boxes[idx.cuda()])\n",
+        "    cv2_imshow(v.get_image()[:, :, ::-1])"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "scrolled": false,
+        "id": "_JRw-IKz0YZN",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from detectron2.utils.visualizer import ColorMode\n",
+        "\n",
+        "cfg.DATASETS.TEST = (\"endo1_val\", )\n",
+        "predictor = DefaultPredictor(cfg)\n",
+        "\n",
+        "for t in ['train', 'val']:\n",
+        "    dataset_dicts = _get_dicts(t)()\n",
+        "\n",
+        "    print(\"\\n\"*2 + t.upper() + \"\\n\"*2)\n",
+        "    for d in random.sample(dataset_dicts, 2):\n",
+        "        im = cv2.imread(d[\"file_name\"])\n",
+        "        outputs = predictor(im)\n",
+        "        v = Visualizer(im[:, :, ::-1],\n",
+        "                       metadata=MetadataCatalog.get(f\"endo1_{t}\"), \n",
+        "                       scale=0.8, \n",
+        "#                        instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels\n",
+        "        )\n",
+        "        \n",
+        "#         v = v.draw_instance_predictions(outputs[\"instances\"].to(\"cpu\"))\n",
+        "        b=outputs['proposals'].get_fields()['proposal_boxes'].tensor.to('cpu')[outputs['proposals'].get_fields()['objectness_logits'].sigmoid() >= 0.8]\n",
+        "        v=v.overlay_instances(boxes=b) #\n",
+        "        cv2_imshow(v.get_image()[:, :, ::-1])\n",
+        "        os.makedirs(os.path.join(cfg.OUTPUT_DIR, f'{t}_preds/'), exist_ok=True)\n",
+        "        \n",
+        "        # WandB\n",
+        "        wandb.log({f\"{t}: {d['file_name']}\": [wandb.Image(v.get_image(), caption=f\"Threshold: {cfg.confidence_threshold}\")]})"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "egjYN1b_0YZR",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "??Visualizer"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "JViD-o1r0YZV",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# from detectron2.data import DatasetCatalog, MetadataCatalog\n",
+        "# DatasetCatalog.register(\"endo1_test\", _get_dicts_test(folder='EndoCV_Det/TEST/Detection/'))\n",
+        "\n",
+        "# MetadataCatalog.get(\"endo1_test\").set(thing_classes=[\"specularity\",\"saturation\",\n",
+        "#                                   \"artifact\", \"blur\", \"contrast\", \"bubbles\",\n",
+        "#                                   \"instrument\", \"blood\"])\n",
+        "\n",
+        "# endo_metadata = MetadataCatalog.get(\"endo1_test\") "
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "scrolled": true,
+        "id": "gLe1Tirz0YZZ",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "folder = 'EndoCV_Det/TRAIN/images/'\n"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "h9tECBQCvMv3",
+        "colab": {}
+      },
+      "source": [
+        ""
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "4PAtd96W0YZm",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        ""
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "64tT8cfj0YZq",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        ""
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "nX2CZDhc0YZt",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "len(os.listdir('EndoCV2020_testSubmission/detection_bbox'))"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "6ChzSO820YZw",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "# EndoCV2020_testSubmission/detection_bbox"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "d5c8vOq30YZ1",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "!mkdir EndoCV2020_testSubmission/generalization_bbox"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "WlEsLdMH0YZ4",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from tqdm import tqdm_notebook as tqdm"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "Isxr7Re50YZ8",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "for i in tqdm(range(len(outputs))):\n",
+        "    output = outputs[i]['instances'].get_fields()\n",
+        "    create_txt(output, 'ead2020_testG_'+str(i+1).zfill(4))"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "oKBbjnLw5GGG"
+      },
+      "source": [
+        "# Other types of builtin models"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "iLUp5Jhf0YaD",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from detectron2.evaluation import COCOEvaluator, inference_on_dataset\n",
+        "from detectron2.data import build_detection_test_loader\n",
+        "evaluator = COCOEvaluator(\"endo1_val\", cfg, False, output_dir=\"./output/\")\n",
+        "val_loader = build_detection_test_loader(cfg, \"endo1_vall\")\n",
+        "inference_on_dataset(trainer.model, val_loader, evaluator)\n",
+        "# another equivalent way is to use trainer.test"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "GYJrlXZC5M-J",
+        "colab": {}
+      },
+      "source": [
+        "# Inference with a keypoint detection model\n",
+        "cfg = get_cfg()\n",
+        "cfg.merge_from_file(model_zoo.get_config_file(\"COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml\"))\n",
+        "cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set threshold for this model\n",
+        "cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(\"COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml\")\n",
+        "predictor = DefaultPredictor(cfg)\n",
+        "outputs = predictor(im)\n",
+        "v = Visualizer(im[:,:,::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)\n",
+        "v = v.draw_instance_predictions(outputs[\"instances\"].to(\"cpu\"))\n",
+        "cv2_imshow(v.get_image()[:, :, ::-1])"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "roTj1N9F5uJ5",
+        "colab": {}
+      },
+      "source": [
+        "# Inference with a panoptic segmentation model\n",
+        "cfg = get_cfg()\n",
+        "cfg.merge_from_file(model_zoo.get_config_file(\"COCO-PanopticSegmentation/panoptic_fpn_R_101_3x.yaml\"))\n",
+        "cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(\"COCO-PanopticSegmentation/panoptic_fpn_R_101_3x.yaml\")\n",
+        "predictor = DefaultPredictor(cfg)\n",
+        "panoptic_seg, segments_info = predictor(im)[\"panoptic_seg\"]\n",
+        "v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)\n",
+        "v = v.draw_panoptic_seg_predictions(panoptic_seg.to(\"cpu\"), segments_info)\n",
+        "cv2_imshow(v.get_image()[:, :, ::-1])"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "colab_type": "text",
+        "id": "hiXadAb9Fv-L"
+      },
+      "source": [
+        "# Run panoptic segmentation on a video"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "YU5_W8wJF02F",
+        "colab": {}
+      },
+      "source": [
+        "# This is the video we're going to process\n",
+        "from IPython.display import YouTubeVideo, display\n",
+        "video = YouTubeVideo(\"ll8TgCZ0plk\", width=500)\n",
+        "display(video)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "a65jM_VFF2Hr",
+        "colab": {}
+      },
+      "source": [
+        "# Install dependencies, download the video, and crop 5 seconds for processing\n",
+        "!pip install youtube-dl\n",
+        "!pip uninstall -y opencv-python opencv-contrib-python\n",
+        "!apt install python3-opencv  # the one pre-installed have some issues\n",
+        "!youtube-dl https://www.youtube.com/watch?v=ll8TgCZ0plk -f 22 -o video.mp4\n",
+        "!ffmpeg -i video.mp4 -t 00:00:06 -c:v copy video-clip.mp4"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "cyA4VmKcF61k",
+        "colab": {}
+      },
+      "source": [
+        "# Run frame-by-frame inference demo on this video (takes 3-4 minutes)\n",
+        "# Using a model trained on COCO dataset\n",
+        "!cd detectron2_repo && python demo/demo.py --config-file configs/COCO-PanopticSegmentation/panoptic_fpn_R_101_3x.yaml --video-input ../video-clip.mp4 --confidence-threshold 0.6 --output ../video-output.mkv \\\n",
+        "  --opts MODEL.WEIGHTS detectron2://COCO-PanopticSegmentation/panoptic_fpn_R_101_3x/139514519/model_final_cafdb1.pkl"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "colab_type": "code",
+        "id": "OpLg_MAQGPUT",
+        "colab": {}
+      },
+      "source": [
+        "# Download the results\n",
+        "from google.colab import files\n",
+        "files.download('video-output.mkv')"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "WnqO00VV0Yag",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "del cfg\n",
+        "del trainer\n",
+        "import torch\n",
+        "torch.cuda.empty_cache()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "32AETd-10Yak",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "def dump_tensors(gpu_only=True):\n",
+        "\t\"\"\"Prints a list of the Tensors being tracked by the garbage collector.\"\"\"\n",
+        "\timport gc\n",
+        "\ttotal_size = 0\n",
+        "\tfor obj in gc.get_objects():\n",
+        "\t\ttry:\n",
+        "\t\t\tif torch.is_tensor(obj):\n",
+        "\t\t\t\tif not gpu_only or obj.is_cuda:\n",
+        "\t\t\t\t\tprint(\"%s:%s%s %s\" % (type(obj).__name__, \n",
+        "\t\t\t\t\t\t\t\t\t\t  \" GPU\" if obj.is_cuda else \"\",\n",
+        "\t\t\t\t\t\t\t\t\t\t  \" pinned\" if obj.is_pinned else \"\",\n",
+        "\t\t\t\t\t\t\t\t\t\t  pretty_size(obj.size())))\n",
+        "\t\t\t\t\ttotal_size += obj.numel()\n",
+        "\t\t\telif hasattr(obj, \"data\") and torch.is_tensor(obj.data):\n",
+        "\t\t\t\tif not gpu_only or obj.is_cuda:\n",
+        "\t\t\t\t\tprint(\"%s → %s:%s%s%s%s %s\" % (type(obj).__name__, \n",
+        "\t\t\t\t\t\t\t\t\t\t\t\t   type(obj.data).__name__, \n",
+        "\t\t\t\t\t\t\t\t\t\t\t\t   \" GPU\" if obj.is_cuda else \"\",\n",
+        "\t\t\t\t\t\t\t\t\t\t\t\t   \" pinned\" if obj.data.is_pinned else \"\",\n",
+        "\t\t\t\t\t\t\t\t\t\t\t\t   \" grad\" if obj.requires_grad else \"\", \n",
+        "\t\t\t\t\t\t\t\t\t\t\t\t   \" volatile\" if obj.volatile else \"\",\n",
+        "\t\t\t\t\t\t\t\t\t\t\t\t   pretty_size(obj.data.size())))\n",
+        "\t\t\t\t\ttotal_size += obj.data.numel()\n",
+        "\t\texcept Exception as e:\n",
+        "\t\t\tpass        \n",
+        "\tprint(\"Total size:\", total_size)"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "r8CaV6ZK0Yap",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "dump_tensors()"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "IeMLXDti0Yas",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        "from detectron2.utils.visualizer import ColorMode\n",
+        "\n",
+        "cfg.DATASETS.TEST = (\"endo1_val\", )\n",
+        "predictor = DefaultPredictor(cfg)\n",
+        "\n",
+        "for t in ['train', 'val']:\n",
+        "    dataset_dicts = _get_dicts(t)()\n",
+        "\n",
+        "    print(\"\\n\"*2 + t.upper() + \"\\n\"*2)\n",
+        "    for d in random.sample(dataset_dicts, 10):\n",
+        "        im = cv2.imread(d[\"file_name\"])\n",
+        "        outputs = predictor(im)\n",
+        "        v = Visualizer(im[:, :, ::-1],\n",
+        "                       metadata=MetadataCatalog.get(f\"endo1_{t}\"), \n",
+        "                       scale=0.8, \n",
+        "#                        instance_mode=ColorMode.IMAGE_BW   # remove the colors of unsegmented pixels\n",
+        "        )\n",
+        "        v = v.draw_instance_predictions(outputs[\"instances\"].to(\"cpu\"))\n",
+        "#         v = v.draw_instance_predictions(outputs[\"proposals\"].to(\"cpu\"))\n",
+        "        cv2_imshow(v.get_image()[:, :, ::-1])\n",
+        "#         os.makedirs(os.path.join(cfg.OUTPUT_DIR, f'{t}_preds/'), exist_ok=True)\n",
+        "        \n",
+        "        # WandB\n",
+        "#         wandb.log({f\"{t}: {d['file_name']}\": [wandb.Image(v.get_image(), caption=f\"Threshold: {cfg.confidence_threshold}\")]})"
+      ],
+      "execution_count": 0,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "NjomvkDe0Yau",
+        "colab_type": "code",
+        "colab": {}
+      },
+      "source": [
+        ""
+      ],
+      "execution_count": 0,
+      "outputs": []
+    }
+  ]
+}
