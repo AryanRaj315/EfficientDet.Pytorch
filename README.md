@@ -7,3 +7,5 @@ Google Research, Brain Team.  The official and original: comming soon.
 
 # Issues - 
 EfficientDet is has a fully convolutional network ( due to BiFPN being multi scale ). So Corner Point sub-network outputs a feature map, need a loss functon for the corner points.
+# Detectron 2
+Added new framework for training models like Faster Rcnn, RetinaNet, Mask Rcnn, etc
